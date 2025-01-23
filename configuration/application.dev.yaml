@@ -1,0 +1,11 @@
+app:
+  api:
+    version: v1
+datasource:
+  database:
+    sci-tech-search-pg:
+      host: 127.0.0.1
+      port: 5432
+      database:
+      username:
+      password:

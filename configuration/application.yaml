@@ -1,0 +1,4 @@
+app:
+  environment: dev
+  meta:
+    swagger_ui_api_title: Science Technology Search Engine service API
