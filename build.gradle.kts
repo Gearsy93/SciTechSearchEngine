@@ -37,12 +37,16 @@ dependencies {
 	implementation("org.springframework.ai:spring-ai-neo4j-store-spring-boot-starter")
 	implementation("org.springframework.ai:spring-ai-transformers-spring-boot-starter")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
-	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
-	developmentOnly("org.springframework.ai:spring-ai-spring-boot-docker-compose")
+//	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
+//	developmentOnly("org.springframework.ai:spring-ai-spring-boot-docker-compose")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	implementation("com.microsoft.onnxruntime:onnxruntime_gpu:1.20.0")
+	implementation("org.apache.commons:commons-math3:3.6.1")
+	implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4")
 }
 
 dependencyManagement {
