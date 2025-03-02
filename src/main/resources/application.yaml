@@ -1,0 +1,11 @@
+spring:
+  main:
+    web-application-type: none
+  application:
+    name: Science Technology Search Engine
+
+db:
+  neo4j:
+    uri: bolt://localhost:7687
+    username: neo4j
+    password: venomvenom--

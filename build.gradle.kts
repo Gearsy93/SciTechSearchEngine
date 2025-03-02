@@ -37,8 +37,6 @@ dependencies {
 	implementation("org.springframework.ai:spring-ai-neo4j-store-spring-boot-starter")
 	implementation("org.springframework.ai:spring-ai-transformers-spring-boot-starter")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
-//	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
-//	developmentOnly("org.springframework.ai:spring-ai-spring-boot-docker-compose")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
@@ -61,6 +59,41 @@ kotlin {
 	}
 }
 
-tasks.withType<Test> {
-	useJUnitPlatform()
+tasks.register<JavaExec>("runFillNeo4j") {
+	group = "application"
+	mainClass.set("com.gearsy.thesaurusdatacollector.ThesaurusDataCollectorApplicationKt")
+	classpath = sourceSets["main"].runtimeClasspath
+
+	// Читаем свойство 'filename' из Gradle, если оно задано, иначе можно задать значение по умолчанию.
+	val fileName: String = if (project.hasProperty("filename")) {
+		project.property("filename").toString()
+	} else {
+		"defaultFileName" // можно задать значение по умолчанию или вывести ошибку
+	}
+	args = listOf("-fillNeo4j", fileName)
+}
+
+tasks.register<JavaExec>("runClearNeo4j") {
+	group = "application"
+	mainClass.set("com.gearsy.thesaurusdatacollector.ThesaurusDataCollectorApplicationKt")
+	classpath = sourceSets["main"].runtimeClasspath
+	args = listOf("-clearNeo4j")
+	jvmArgs = listOf(
+		"-Dfile.encoding=UTF-8",
+		"-Dsun.stdout.encoding=UTF-8",
+		"-Dsun.stderr.encoding=UTF-8"
+	)
+}
+
+tasks.register<JavaExec>("runGenerateCSCSTIThesaurusVectors") {
+	group = "application"
+	mainClass.set("com.gearsy.neo4jthesaurus.Neo4jThesaurusApplicationKt")
+	classpath = sourceSets["main"].runtimeClasspath
+
+	val cscstiCipher: String = project.findProperty("cscstiCipher")?.toString() ?: run {
+		println("Ошибка: укажите шифр рубрики CSCSTI через -PcscstiCipher=...")
+		return@register
+	}
+
+	args = listOf("-generateCSCSTIThesaurusVectors", cscstiCipher)
 }
