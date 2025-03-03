@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.config
+package com.gearsy.scitechsearchengine.config.properties
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration

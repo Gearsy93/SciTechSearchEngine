@@ -13,9 +13,4 @@ abstract class AbstractRubricatorNode(
 
     @JsonManagedReference
     open var children: MutableList<AbstractRubricatorNode> = mutableListOf()
-) {
-    fun addChildNode(child: AbstractRubricatorNode) {
-        child.parentCipher = this.cipher
-        children.add(child)
-    }
-}
+)

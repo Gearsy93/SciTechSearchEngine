@@ -41,10 +41,15 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+//	implementation("com.microsoft.onnxruntime:onnxruntime:1.20.0")
 	implementation("com.microsoft.onnxruntime:onnxruntime_gpu:1.20.0")
 	implementation("org.apache.commons:commons-math3:3.6.1")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4")
+	implementation("org.springframework.boot:spring-boot-starter")
+	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+	implementation("ai.djl.huggingface:tokenizers:0.32.0")
+
 }
 
 dependencyManagement {
@@ -59,9 +64,17 @@ kotlin {
 	}
 }
 
+tasks.withType<JavaExec> {
+	jvmArgs = listOf(
+		"-Dfile.encoding=UTF-8",
+		"-Dsun.stdout.encoding=UTF-8",
+		"-Dsun.stderr.encoding=UTF-8"
+	)
+}
+
 tasks.register<JavaExec>("runFillNeo4j") {
 	group = "application"
-	mainClass.set("com.gearsy.thesaurusdatacollector.ThesaurusDataCollectorApplicationKt")
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	classpath = sourceSets["main"].runtimeClasspath
 
 	// Читаем свойство 'filename' из Gradle, если оно задано, иначе можно задать значение по умолчанию.
@@ -75,23 +88,17 @@ tasks.register<JavaExec>("runFillNeo4j") {
 
 tasks.register<JavaExec>("runClearNeo4j") {
 	group = "application"
-	mainClass.set("com.gearsy.thesaurusdatacollector.ThesaurusDataCollectorApplicationKt")
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	classpath = sourceSets["main"].runtimeClasspath
 	args = listOf("-clearNeo4j")
-	jvmArgs = listOf(
-		"-Dfile.encoding=UTF-8",
-		"-Dsun.stdout.encoding=UTF-8",
-		"-Dsun.stderr.encoding=UTF-8"
-	)
 }
 
 tasks.register<JavaExec>("runGenerateCSCSTIThesaurusVectors") {
 	group = "application"
-	mainClass.set("com.gearsy.neo4jthesaurus.Neo4jThesaurusApplicationKt")
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	classpath = sourceSets["main"].runtimeClasspath
 
 	val cscstiCipher: String = project.findProperty("cscstiCipher")?.toString() ?: run {
-		println("Ошибка: укажите шифр рубрики CSCSTI через -PcscstiCipher=...")
 		return@register
 	}
 

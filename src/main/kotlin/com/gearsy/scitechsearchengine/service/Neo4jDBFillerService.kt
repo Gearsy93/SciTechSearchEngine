@@ -1,7 +1,7 @@
 package com.gearsy.scitechsearchengine.service
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.gearsy.scitechsearchengine.config.Neo4jProperties
+import com.gearsy.scitechsearchengine.config.properties.Neo4jProperties
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.gearsy.scitechsearchengine.model.AbstractRubricatorNode
 import jakarta.annotation.PreDestroy
