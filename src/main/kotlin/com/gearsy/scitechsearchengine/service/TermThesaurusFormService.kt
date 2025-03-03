@@ -1,15 +1,21 @@
 package com.gearsy.scitechsearchengine.service
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.stereotype.Service
+import java.io.File
 
 @Service
 class TermThesaurusFormService(private val embeddingProcessService: EmbeddingProcessService) {
 
     fun generateCSCSTIThesaurusVectors(cscstiCipher: String) {
-        val texts = listOf("Пример текста", "Антипример текста")
+        // Маппер объектов для дереализации
+        val objectMapper = jacksonObjectMapper()
 
-        val embeddings = embeddingProcessService.generateEmbeddings(texts)
+        // Загрузка содержимого рубрики ГРНТИ
+        val cscstiFilePath = "src/main/resources/output/rubricator/cscsti/${cscstiCipher}.json"
+        val cscstiFileContent = File(cscstiFilePath).readText(Charsets.UTF_8)
+        val cscstiJsonNode = objectMapper.readTree(cscstiFileContent)
 
-        println()
+        //        val embeddings = embeddingProcessService.generateEmbeddings(texts)
     }
 }
