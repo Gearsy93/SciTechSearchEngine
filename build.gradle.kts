@@ -104,3 +104,31 @@ tasks.register<JavaExec>("runGenerateCSCSTIThesaurusVectors") {
 
 	args = listOf("-generateCSCSTIThesaurusVectors", cscstiCipher)
 }
+
+tasks.register<JavaExec>("runGetQueryRelevantCSCSTIRubricList") {
+	group = "application"
+	description = "Запускает поиск релевантных рубрик для заданного запроса"
+
+	classpath = sourceSets["main"].runtimeClasspath
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt") // Укажи главный класс
+
+	val query: String = project.findProperty("query") as String? ?: run {
+		return@register
+	}
+
+	args = listOf("-getQueryRelevantCSCSTIRubricList", query)
+}
+
+tasks.register<JavaExec>("runMakeSearchApiRequest") {
+	group = "application"
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	classpath = sourceSets["main"].runtimeClasspath
+	args = listOf("-make_search_api_request")
+}
+
+tasks.register<JavaExec>("runMakeECatalogSearchRequest") {
+	group = "application"
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	classpath = sourceSets["main"].runtimeClasspath
+	args = listOf("-make_e-catalog_request")
+}

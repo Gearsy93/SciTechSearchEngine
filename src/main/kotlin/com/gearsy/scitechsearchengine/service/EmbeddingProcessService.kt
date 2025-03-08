@@ -23,8 +23,16 @@ class EmbeddingProcessService(private val modelLoader: ModelLoaderService,
         val attentionMaskData = encodings.map { it.attentionMask }.toTypedArray()
 
         // Создание тензоров
-        val inputIdsTensor = OnnxTensor.createTensor(environment, inputIdsData)
-        val attentionMaskTensor = OnnxTensor.createTensor(environment, attentionMaskData)
+        val inputIdsTensor: OnnxTensor
+        val attentionMaskTensor: OnnxTensor
+        try {
+            inputIdsTensor = OnnxTensor.createTensor(environment, inputIdsData)
+            attentionMaskTensor = OnnxTensor.createTensor(environment, attentionMaskData)
+        }
+        catch (e: Exception) {
+            println(e)
+            throw e
+        }
 
         return try {
             val inputs = mapOf(

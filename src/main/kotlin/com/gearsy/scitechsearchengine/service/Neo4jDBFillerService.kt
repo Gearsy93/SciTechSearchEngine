@@ -1,71 +1,99 @@
 package com.gearsy.scitechsearchengine.service
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.gearsy.scitechsearchengine.config.properties.Neo4jProperties
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.gearsy.scitechsearchengine.model.AbstractRubricatorNode
+import com.gearsy.scitechsearchengine.config.properties.Neo4jProperties
+import com.gearsy.scitechsearchengine.model.CSCSTIRubricatorEmbeddedNode
 import jakarta.annotation.PreDestroy
 import org.neo4j.driver.AuthTokens
 import org.neo4j.driver.Driver
 import org.neo4j.driver.GraphDatabase
 import org.neo4j.driver.Session
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File
 
 @Service
 class Neo4jDBFillerService(
-    private val neo4jProperties: Neo4jProperties,
+    neo4jProperties: Neo4jProperties,
 ) {
 
+    private val logger = LoggerFactory.getLogger(Neo4jDBFillerService::class.java)
+
     // Создаем драйвер для подключения
-    private var driver: Driver = GraphDatabase.driver(neo4jProperties.uri, AuthTokens.basic(neo4jProperties.username, neo4jProperties.password))
+    private var driver: Driver = GraphDatabase.driver(
+        neo4jProperties.uri, AuthTokens.basic(neo4jProperties.username, neo4jProperties.password)
+    )
 
     @PreDestroy
     fun cleanup() {
         driver.close()
     }
 
-    fun fillNeo4jSchemaWithRubricJson(filename: String) {
+    fun fillNeo4jSchemaWithRubricJson(cscstiCipher: String) {
 
         // Путь к файлу JSON
-        // TODO поправить
-        val filePath = "src/main/resources/output/viniti/cscsti/${filename}.json"
+        val filePath = "src/main/resources/rubricator/cscstiEmbeddings/$cscstiCipher.json"
 
         val mapper = jacksonObjectMapper()
-        val rootRubric: AbstractRubricatorNode = mapper.readValue(File(filePath))
+        val rootRubric: CSCSTIRubricatorEmbeddedNode = mapper.readValue(File(filePath))
 
         // Открываем сессию и заполняем базу
         driver.session().use { session ->
-            // Рекурсивно добавляем узлы и связи
             insertRubric(session, rootRubric, parentCipher = null)
         }
-
     }
 
-    fun insertRubric(session: Session, rubricNode: AbstractRubricatorNode, parentCipher: String?) {
+    fun insertRubric(session: Session, rubricNode: CSCSTIRubricatorEmbeddedNode, parentCipher: String?) {
+        logger.info("Создание рубрики: cipher=${rubricNode.cipher}, title=${rubricNode.title}")
+
         // Запрос для создания или обновления узла с меткой Rubric
         val query = """
         MERGE (r:Rubric {cipher: ${'$'}cipher})
-        SET r.title = ${'$'}title, r.termList = ${'$'}termList
+        SET r.title = ${'$'}title, r.embedding = ${'$'}embedding
         RETURN r
-    """.trimIndent()
+        """.trimIndent()
 
-        session.run(query, mapOf(
-            "cipher" to rubricNode.cipher,
-            "title" to rubricNode.title,
-            "termList" to rubricNode.termList
-        ))
+        session.run(
+            query, mapOf(
+                "cipher" to rubricNode.cipher,
+                "title" to rubricNode.title,
+                "embedding" to rubricNode.embedding
+            )
+        )
 
         // Если существует родительская рубрика, создаём связь HAS_CHILD
         if (parentCipher != null) {
             val relQuery = """
             MATCH (parent:Rubric {cipher: ${'$'}parentCipher}), (child:Rubric {cipher: ${'$'}childCipher})
             MERGE (parent)-[:HAS_CHILD]->(child)
-        """.trimIndent()
-            session.run(relQuery, mapOf(
-                "parentCipher" to parentCipher,
-                "childCipher" to rubricNode.cipher
-            ))
+            """.trimIndent()
+            session.run(
+                relQuery, mapOf(
+                    "parentCipher" to parentCipher,
+                    "childCipher" to rubricNode.cipher
+                )
+            )
+        }
+
+        // Обрабатываем термины, если они есть
+        rubricNode.termList?.forEach { term ->
+
+            val termQuery = """
+            MERGE (t:Term {content: ${'$'}content})
+            SET t.embedding = ${'$'}embedding
+            WITH t
+            MATCH (r:Rubric {cipher: ${'$'}cipher})
+            MERGE (t)-[:BELONGS_TO]->(r)
+            """.trimIndent()
+
+            session.run(
+                termQuery, mapOf(
+                    "content" to term.content,
+                    "embedding" to term.embedding,
+                    "cipher" to rubricNode.cipher
+                )
+            )
         }
 
         // Рекурсивно обрабатываем дочерние рубрики
@@ -75,14 +103,9 @@ class Neo4jDBFillerService(
     }
 
     fun clearDatabase() {
-        val driver = GraphDatabase.driver(
-            neo4jProperties.uri,
-            AuthTokens.basic(neo4jProperties.username, neo4jProperties.password)
-        )
         driver.session().use { session ->
             session.run("MATCH (n) DETACH DELETE n")
         }
-        driver.close()
-        println("База данных Neo4j очищена.")
+        logger.info("База данных Neo4j очищена.")
     }
 }

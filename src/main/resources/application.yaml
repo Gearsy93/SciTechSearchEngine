@@ -15,3 +15,13 @@ model:
     name: deepvk/USER-bge-m3
     modelPath: src/main/resources/model/checkpoint/USER-bge-m3.onnx
     tokenizerPath: src/main/resources/model/checkpoint/tokenizer.json
+
+api:
+  yandex-cloud:
+    apiKey: AQVN3qW0tK4TCoUkTgVSpmtS6HEMYXlhGlfisKbk
+    searchApiUrl: https://api.search.yandex.net/v2/websearch
+
+viniti:
+  e-catalog:
+    startPageUrl: http://catalog.viniti.ru/srch_basic.aspx
+
