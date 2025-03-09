@@ -2,6 +2,7 @@ package com.gearsy.scitechsearchengine.service
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.YandexApiProperties
+import com.gearsy.scitechsearchengine.model.YandexSearchResult
 import org.slf4j.LoggerFactory
 import org.springframework.http.*
 import org.springframework.stereotype.Service
@@ -16,6 +17,7 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 import org.w3c.dom.Document
+import org.w3c.dom.NodeList
 
 @Service
 class YandexAPIInteractionService(
@@ -48,11 +50,14 @@ class YandexAPIInteractionService(
 
         val requestXMLBody = getBase64DecodedBody(base64Result)
         val requestBody = documentToString(requestXMLBody)
+
+        val documentResultList = getDocumentResultObjectList(requestXMLBody)
+        println(requestBody)
     }
 
     fun createRequest(query: String): String {
 
-        val mimeTypes = listOf("doc", "docx", "pdf").joinToString(" ") { "mime:$it" }
+        val mimeTypes = listOf("pdf").joinToString(" ") { "mime:$it" }
 
         val requestBody = mapOf(
             "query" to mapOf(
@@ -187,6 +192,30 @@ class YandexAPIInteractionService(
         } catch (ex: Exception) {
             "Ошибка преобразования XML в строку: ${ex.message}"
         }
+    }
+
+    fun getDocumentResultObjectList(xmlDoc: Document): List<YandexSearchResult> {
+        val results = mutableListOf<YandexSearchResult>()
+        val docNodes: NodeList = xmlDoc.getElementsByTagName("doc")
+
+        for (i in 0 until docNodes.length) {
+            val docElement = docNodes.item(i)
+            val docId = docElement.attributes.getNamedItem("id")?.nodeValue ?: continue
+            val urlNode = docElement.childNodes
+
+            var url: String? = null
+            for (j in 0 until urlNode.length) {
+                if (urlNode.item(j).nodeName == "url") {
+                    url = urlNode.item(j).textContent
+                    break
+                }
+            }
+
+            if (url != null) {
+                results.add(YandexSearchResult(documentId = docId, url = url))
+            }
+        }
+        return results
     }
 
 }
