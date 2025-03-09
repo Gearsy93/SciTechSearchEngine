@@ -57,7 +57,7 @@ class YandexAPIInteractionService(
         val requestBody = mapOf(
             "query" to mapOf(
                 "searchType" to "SEARCH_TYPE_RU",
-                "queryText" to query,
+                "queryText" to "$query $mimeTypes",
                 "familyMode" to "FAMILY_MODE_STRICT",
                 "page" to "1"
             ),
