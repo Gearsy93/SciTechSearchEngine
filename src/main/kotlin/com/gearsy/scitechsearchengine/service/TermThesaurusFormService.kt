@@ -14,17 +14,26 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
 
     private val logger = LoggerFactory.getLogger(TermThesaurusFormService::class.java)
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
-    private val embeddingCache = mutableMapOf<String, FloatArray>()
+    private val embeddingCache = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean {
+            return size > 10000  // Ограничиваем кэш до 10,000 записей
+        }
+    }
+
 
     fun generateCSCSTIThesaurusVectors(cscstiCipher: String) {
         logger.info("Загрузка JSON для рубрики $cscstiCipher")
         val cscstiFilePath = "src/main/resources/rubricator/cscstiEnrich/$cscstiCipher.json"
-        val cscstiJsonNode: JsonNode = objectMapper.readTree(File(cscstiFilePath))
+        val factory = objectMapper.factory
+        val parser = factory.createParser(File(cscstiFilePath))
 
-        val updatedJson = processRubric(cscstiJsonNode.get("content"))
+        val cscstiJsonNode: JsonNode = objectMapper.readTree(parser) // ✅ Теперь тип явный
+
+        val updatedJson = processRubric(cscstiJsonNode)
+
 
         val outputPath = "src/main/resources/rubricator/cscstiEmbeddings/$cscstiCipher.json"
-        File(outputPath).writeText(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(updatedJson))
+        objectMapper.writeValue(File(outputPath), updatedJson)
         logger.info("Файл с эмбеддингами сохранен: $outputPath")
     }
 
@@ -35,7 +44,13 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
 
         logger.info("Обработка рубрики: $title ($cipher)")
 
-        val termList = node.get("termList")?.mapNotNull { it.get("content")?.asText() } ?: emptyList()
+        val termList = node.get("termList")
+            ?.mapNotNull { it.get("content")?.asText() }
+            ?.distinct()
+            ?.take(3000)  // Ограничиваем список терминов
+            ?: emptyList()
+
+
 
         val termEmbeddings = generateTermEmbeddings(termList)
         val childNodes = node.get("children")?.map { processRubric(it) } ?: emptyList()
@@ -73,11 +88,14 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
     }
 
     private fun computeSentenceEmbedding(terms: List<String>): FloatArray {
-        val sentence = terms.joinToString(", ")
+        val maxTerms = 500  // Ограничим длину предложения (количество терминов)
+        val sentence = terms.take(maxTerms).joinToString(", ")
+
         return embeddingCache.getOrPut(sentence) {
             embeddingProcessService.generateEmbeddings(listOf(sentence))[0].toFloatArray()
         }
     }
+
 
     private fun computeCentroidEmbedding(terms: List<String>, children: List<JsonNode>): FloatArray {
 

@@ -19,7 +19,8 @@ model:
 api:
   yandex-cloud:
     apiKey: AQVN3qW0tK4TCoUkTgVSpmtS6HEMYXlhGlfisKbk
-    searchApiUrl: https://api.search.yandex.net/v2/websearch
+    searchApiUrl: https://searchapi.api.cloud.yandex.net/v2/web/searchAsync
+    resultApiUrl: https://operation.api.cloud.yandex.net/operations/
 
 viniti:
   e-catalog:

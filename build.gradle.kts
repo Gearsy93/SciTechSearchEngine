@@ -41,7 +41,7 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-//	implementation("com.microsoft.onnxruntime:onnxruntime:1.20.0")
+	implementation("org.seleniumhq.selenium:selenium-java:4.28.1")
 	implementation("com.microsoft.onnxruntime:onnxruntime_gpu:1.20.0")
 	implementation("org.apache.commons:commons-math3:3.6.1")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
@@ -49,6 +49,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
 	implementation("ai.djl.huggingface:tokenizers:0.32.0")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 
 }
 

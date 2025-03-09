@@ -8,4 +8,5 @@ import org.springframework.context.annotation.Configuration
 class YandexApiProperties {
     lateinit var apiKey: String
     lateinit var searchApiUrl: String
+    lateinit var resultApiUrl: String
 }
