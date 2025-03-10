@@ -18,6 +18,10 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 import org.w3c.dom.Document
 import org.w3c.dom.NodeList
+import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
+import java.nio.file.Paths
 
 @Service
 class YandexAPIInteractionService(
@@ -52,7 +56,8 @@ class YandexAPIInteractionService(
         val requestBody = documentToString(requestXMLBody)
 
         val documentResultList = getDocumentResultObjectList(requestXMLBody)
-        println(requestBody)
+
+        downloadFiles(documentResultList, requestId)
     }
 
     fun createRequest(query: String): String {
@@ -216,6 +221,46 @@ class YandexAPIInteractionService(
             }
         }
         return results
+    }
+
+    fun downloadFiles(resultList: List<YandexSearchResult>, requestId: String) {
+        val downloadPath = "src/main/resources/yandexDownloads/$requestId"
+        val isCreated = createFolder(downloadPath)
+        println(if (isCreated) "Папка создана: $downloadPath" else "Папка уже существует")
+
+        resultList.forEach { result ->
+            try {
+                val fileUrl = URL(result.url)
+                var fileName = result.documentId + "_" + fileUrl.path.substringAfterLast("/")
+                val filePath = Paths.get(downloadPath, fileName).toString()
+
+                // Проверяем, есть ли у файла расширение, если нет – добавляем .pdf
+                if (!fileName.contains(".")) {
+                    fileName += ".pdf"
+                }
+
+                println("Скачивание файла: ${result.url} -> $filePath")
+
+                URL(result.url).openStream().use { input ->
+                    FileOutputStream(filePath).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                println("Файл сохранён: $filePath")
+            } catch (ex: Exception) {
+                println("Ошибка при загрузке ${result.url}: ${ex.message}")
+            }
+        }
+    }
+
+    fun createFolder(path: String): Boolean {
+        val folder = File(path)
+        return if (!folder.exists()) {
+            folder.mkdirs() // Создаёт папку и все вложенные директории
+        } else {
+            false // Папка уже существует
+        }
     }
 
 }
