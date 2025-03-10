@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonManagedReference
 data class CSCSTIRubricatorEmbeddedNode(
     val cipher: String,
     val title: String,
-    var termList: List<TermNode>? = null,
+    var termList: List<TermEmbeddingNode>? = null,
     val embedding: List<Float>,
 
     @JsonManagedReference

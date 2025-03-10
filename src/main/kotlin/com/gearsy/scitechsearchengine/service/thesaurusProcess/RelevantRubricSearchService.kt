@@ -1,7 +1,8 @@
-package com.gearsy.scitechsearchengine.service
+package com.gearsy.scitechsearchengine.service.thesaurusProcess
 
 import com.gearsy.scitechsearchengine.config.properties.Neo4jProperties
 import com.gearsy.scitechsearchengine.model.CSCSTIRubricatorEmbeddedNode
+import com.gearsy.scitechsearchengine.service.langModelProcess.EmbeddingProcessService
 import org.neo4j.driver.AuthTokens
 import org.neo4j.driver.Driver
 import org.neo4j.driver.GraphDatabase

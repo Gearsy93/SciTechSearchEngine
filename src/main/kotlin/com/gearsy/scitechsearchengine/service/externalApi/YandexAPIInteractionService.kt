@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.service
+package com.gearsy.scitechsearchengine.service.externalApi
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.YandexApiProperties

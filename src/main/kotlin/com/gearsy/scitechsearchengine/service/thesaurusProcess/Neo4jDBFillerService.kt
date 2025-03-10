@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.service
+package com.gearsy.scitechsearchengine.service.thesaurusProcess
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue

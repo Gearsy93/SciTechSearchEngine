@@ -1,10 +1,11 @@
-package com.gearsy.scitechsearchengine.service
+package com.gearsy.scitechsearchengine.service.thesaurusProcess
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.gearsy.scitechsearchengine.service.langModelProcess.EmbeddingProcessService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File

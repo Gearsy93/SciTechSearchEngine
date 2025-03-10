@@ -7,4 +7,6 @@ import org.springframework.context.annotation.Configuration
 @ConfigurationProperties(prefix = "viniti.e-catalog")
 class VinitiECatalogProperties {
     lateinit var startPageUrl: String
+    lateinit var username: String
+    lateinit var password: String
 }

@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.service
+package com.gearsy.scitechsearchengine.service.langModelProcess
 
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
 import ai.onnxruntime.OnnxTensor

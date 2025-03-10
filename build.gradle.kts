@@ -37,6 +37,7 @@ dependencies {
 	implementation("org.springframework.ai:spring-ai-neo4j-store-spring-boot-starter")
 	implementation("org.springframework.ai:spring-ai-transformers-spring-boot-starter")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
+	implementation("io.github.bonigarcia:webdrivermanager:5.9.2")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

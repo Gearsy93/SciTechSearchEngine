@@ -1,6 +1,10 @@
 package com.gearsy.scitechsearchengine.config
 
-import com.gearsy.scitechsearchengine.service.*
+import com.gearsy.scitechsearchengine.service.externalApi.VinitiDocSearchService
+import com.gearsy.scitechsearchengine.service.externalApi.YandexAPIInteractionService
+import com.gearsy.scitechsearchengine.service.thesaurusProcess.Neo4jDBFillerService
+import com.gearsy.scitechsearchengine.service.thesaurusProcess.RelevantRubricSearchService
+import com.gearsy.scitechsearchengine.service.thesaurusProcess.TermThesaurusFormService
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
 
