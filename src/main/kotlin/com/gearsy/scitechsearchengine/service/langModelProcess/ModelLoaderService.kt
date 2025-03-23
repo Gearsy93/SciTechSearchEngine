@@ -3,7 +3,7 @@ package com.gearsy.scitechsearchengine.service.langModelProcess
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.providers.OrtCUDAProviderOptions
-import com.gearsy.scitechsearchengine.config.properties.DeepVKModelProperties
+import com.gearsy.scitechsearchengine.config.properties.DeepVKONNXModelProperties
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service
 import java.io.File
 
 @Service
-class ModelLoaderService(private val modelProperties: DeepVKModelProperties,
-    private val args: ApplicationArguments
+class ModelLoaderService(private val modelONNXProperties: DeepVKONNXModelProperties,
+                         private val args: ApplicationArguments
 ) {
 
     private val logger = LoggerFactory.getLogger(ModelLoaderService::class.java)
@@ -22,18 +22,17 @@ class ModelLoaderService(private val modelProperties: DeepVKModelProperties,
 
     @PostConstruct
     fun loadModelOnStartup() {
-        if (args.sourceArgs.contains("-generateCSCSTIThesaurusVectors") ||
-            args.sourceArgs.contains("-getQueryRelevantCSCSTIRubricList")) {
-            val modelPath = File(modelProperties.modelPath)
+        if (args.sourceArgs.contains("-getQueryRelevantCSCSTIRubricList")) {
+            val modelPath = File(modelONNXProperties.modelPath)
 
             if (!modelPath.exists()) {
-                logger.error("Модель не найдена по пути: ${modelProperties.modelPath}")
+                logger.error("Модель не найдена по пути: ${modelONNXProperties.modelPath}")
                 return
             }
 
-            logger.info("Модель '${modelProperties.name}' найдена по пути: ${modelProperties.modelPath}")
+            logger.info("Модель '${modelONNXProperties.name}' найдена по пути: ${modelONNXProperties.modelPath}")
 
-            loadOnnxModel(modelProperties.modelPath)
+            loadOnnxModel(modelONNXProperties.modelPath)
         }
     }
 

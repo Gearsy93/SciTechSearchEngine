@@ -8,7 +8,7 @@ data class CSCSTIRubricatorEmbeddedNode(
     val cipher: String,
     val title: String,
     var termList: List<TermEmbeddingNode>? = null,
-    val embedding: List<Float>,
+    val embedding: List<Double>?,
 
     @JsonManagedReference
     var children: MutableList<CSCSTIRubricatorEmbeddedNode> = mutableListOf()

@@ -3,7 +3,7 @@ package com.gearsy.scitechsearchengine.config
 import com.gearsy.scitechsearchengine.service.externalApi.VinitiDocSearchService
 import com.gearsy.scitechsearchengine.service.externalApi.YandexAPIInteractionService
 import com.gearsy.scitechsearchengine.service.thesaurusProcess.Neo4jDBFillerService
-import com.gearsy.scitechsearchengine.service.thesaurusProcess.RelevantRubricSearchService
+import com.gearsy.scitechsearchengine.service.thesaurusProcess.RelevantRubricTermSearchService
 import com.gearsy.scitechsearchengine.service.thesaurusProcess.TermThesaurusFormService
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component
 class ConsoleArgsRunner(
     private val neo4jDBFillerService: Neo4jDBFillerService,
     private val termThesaurusFormService: TermThesaurusFormService,
-    private val relevantRubricSearchService: RelevantRubricSearchService,
+    private val relevantRubricTermSearchService: RelevantRubricTermSearchService,
     private val yandexAPIInteractionService: YandexAPIInteractionService,
     private val vinitiDocSearchService: VinitiDocSearchService
 ) : CommandLineRunner {
@@ -65,15 +65,21 @@ class ConsoleArgsRunner(
                 if (arguments.size > index + 1) {
                     val query = arguments[index + 1]
                     println("Выполняется: Поиск релевантных рубрик для запроса \"$query\"")
-                    val results = relevantRubricSearchService.getQueryRelevantCSCSTIRubricList(query)
+                    val results = relevantRubricTermSearchService.getQueryRelevantCSCSTIRubricList(query)
 
                     println("Релевантные рубрики:")
-                    results.forEach { println("${it.cipher} - ${it.title}") }
+                    results.forEach { rubric ->
+                        println("${rubric.cipher} - ${rubric.title}")
+                        rubric.termList?.takeIf { it.isNotEmpty() }?.let { terms ->
+                            println("  Релевантные термины: " + terms.joinToString(", ") { it.content })
+                        }
+                    }
                 } else {
                     println("Ошибка: флаг -getQueryRelevantCSCSTIRubricList требует указания запроса.")
                     printUsage()
                 }
             }
+
 
             arguments.contains("-make_search_api_request") -> {
                 println("Выполняется: Запрос Yandex Search API")

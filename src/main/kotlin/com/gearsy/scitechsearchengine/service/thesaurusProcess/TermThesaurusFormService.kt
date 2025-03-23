@@ -5,10 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.gearsy.scitechsearchengine.model.SelectedRubric
+import com.gearsy.scitechsearchengine.model.pythonEmbedding.EmbeddingRequest
 import com.gearsy.scitechsearchengine.service.langModelProcess.EmbeddingProcessService
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File
+import mikera.vectorz.Vector
+
 
 @Service
 class TermThesaurusFormService(private val embeddingProcessService: EmbeddingProcessService) {
@@ -17,10 +22,9 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val embeddingCache = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean {
-            return size > 10000  // Ограничиваем кэш до 10,000 записей
+            return size > 10000
         }
     }
-
 
     fun generateCSCSTIThesaurusVectors(cscstiCipher: String) {
         logger.info("Загрузка JSON для рубрики $cscstiCipher")
@@ -28,7 +32,7 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
         val factory = objectMapper.factory
         val parser = factory.createParser(File(cscstiFilePath))
 
-        val cscstiJsonNode: JsonNode = objectMapper.readTree(parser) // ✅ Теперь тип явный
+        val cscstiJsonNode: JsonNode = objectMapper.readTree(parser)
 
         val updatedJson = processRubric(cscstiJsonNode)
 
@@ -45,21 +49,22 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
 
         logger.info("Обработка рубрики: $title ($cipher)")
 
+        // Извлекается содержимое ключевых слов, фильтруются дубликаты, максимум 3000 слов
         val termList = node.get("termList")
             ?.mapNotNull { it.get("content")?.asText() }
             ?.distinct()
-            ?.take(3000)  // Ограничиваем список терминов
+            ?.take(3000)
             ?: emptyList()
 
 
 
-        val termEmbeddings = generateTermEmbeddings(termList)
+        val termEmbeddings = runBlocking { generateTermEmbeddings(termList, title) }
         val childNodes = node.get("children")?.map { processRubric(it) } ?: emptyList()
 
         val rubricEmbedding = if (childNodes.isEmpty()) {
-            computeSentenceEmbedding(termList)
+            runBlocking {computeSentenceEmbedding(termList, title)}
         } else {
-            computeCentroidEmbedding(termList, childNodes)
+            computeCentroidEmbedding(termList, childNodes, title)
         }
 
         updatedNode.put("cipher", cipher)
@@ -71,15 +76,25 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
         return updatedNode
     }
 
-    private fun generateTermEmbeddings(terms: List<String>): List<Map<String, Any>> {
+    private suspend fun generateTermEmbeddings(terms: List<String>, title: String): List<Map<String, Any>> {
+        if (terms.isEmpty()) return emptyList()
 
-        //
-        val embeddings = if (terms.isEmpty()) {
-            listOf()
+        val requests = terms.map { term ->
+            EmbeddingRequest(
+                term = term,
+                context = terms.filterNot { it == term },
+                title = title
+            )
         }
-        else {
-            embeddingProcessService.generateEmbeddings(terms)
+
+        val chunked = requests.chunked(128)
+        val embeddings = mutableListOf<List<Float>>()
+
+        for (chunk in chunked) {
+            embeddings += embeddingProcessService.requestBatchEmbeddings(chunk)
         }
+
+
         return terms.mapIndexed { index, term ->
             mapOf(
                 "content" to term,
@@ -88,36 +103,46 @@ class TermThesaurusFormService(private val embeddingProcessService: EmbeddingPro
         }
     }
 
-    private fun computeSentenceEmbedding(terms: List<String>): FloatArray {
-        val maxTerms = 500  // Ограничим длину предложения (количество терминов)
-        val sentence = terms.take(maxTerms).joinToString(", ")
+    suspend fun computeSentenceEmbedding(terms: List<String>, title: String): FloatArray {
+        val maxTerms = 800
+        val sentenceKey = (terms + title).take(maxTerms).joinToString(", ")
 
-        return embeddingCache.getOrPut(sentence) {
-            embeddingProcessService.generateEmbeddings(listOf(sentence))[0].toFloatArray()
+        return embeddingCache.getOrPut(sentenceKey) {
+            runBlocking {
+                embeddingProcessService.requestRubricEmbedding(title, terms).toFloatArray()
+            }
         }
     }
 
+    private fun computeCentroidEmbedding(
+        terms: List<String>,
+        children: List<JsonNode>,
+        title: String
+    ): FloatArray {
 
-    private fun computeCentroidEmbedding(terms: List<String>, children: List<JsonNode>): FloatArray {
+        val rubricEmbeddingArray = runBlocking {computeSentenceEmbedding(terms, title) } // FloatArray
+        val rubricEmbedding = Vector.of(*rubricEmbeddingArray.map { it.toDouble() }.toDoubleArray())
 
-        // TODO добавить к terms наименование рубрики
-        val rubricEmbedding = computeSentenceEmbedding(terms)
-
-        val childEmbeddings = children.mapNotNull {
-            it.get("embedding")?.let { e -> objectMapper.readValue<FloatArray>(e.toString()) }
+        // Получаем векторы дочерних рубрик
+        val childEmbeddings = children.mapNotNull { child ->
+            child.get("embedding")?.let { e ->
+                val floatArray = objectMapper.readValue<FloatArray>(e.toString())
+                Vector.of(*floatArray.map { it.toDouble() }.toDoubleArray())
+            }
         }
 
-        if (childEmbeddings.isEmpty()) return rubricEmbedding
-
-        val dimension = rubricEmbedding.size
-        val centroid = FloatArray(dimension)
-        val totalEmbeddings = childEmbeddings.size + 1
-
-        for (i in 0 until dimension) {
-            centroid[i] = (rubricEmbedding[i] + childEmbeddings.sumOf { it[i].toDouble() }.toFloat()) / totalEmbeddings
+        if (childEmbeddings.isEmpty()) {
+            return rubricEmbedding.toDoubleArray().map { it.toFloat() }.toFloatArray()
         }
 
-        return centroid
+        // Суммируем векторы: сначала рубрику, затем всех потомков
+        val sumVector = rubricEmbedding.copy()
+        childEmbeddings.forEach { sumVector.add(it) }
+
+        // Вычисляем среднее (центроид)
+        val total = (childEmbeddings.size + 1).toDouble()
+        val centroidVector = sumVector.divideCopy(total)
+
+        return centroidVector.toDoubleArray().map { it.toFloat() }.toFloatArray()
     }
-
 }

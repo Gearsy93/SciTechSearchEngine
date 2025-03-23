@@ -22,7 +22,7 @@ class Neo4jDBFillerService(
 
     // Создаем драйвер для подключения
     private var driver: Driver = GraphDatabase.driver(
-        neo4jProperties.uri, AuthTokens.basic(neo4jProperties.username, neo4jProperties.password)
+        neo4jProperties.uri, AuthTokens.basic(neo4jProperties.authentication.username, neo4jProperties.authentication.password)
     )
 
     @PreDestroy
