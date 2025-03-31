@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.gearsy.scitechsearchengine.model.SelectedRubric
 import com.gearsy.scitechsearchengine.model.pythonEmbedding.EmbeddingRequest
 import com.gearsy.scitechsearchengine.service.langModelProcess.EmbeddingProcessService
 import kotlinx.coroutines.runBlocking

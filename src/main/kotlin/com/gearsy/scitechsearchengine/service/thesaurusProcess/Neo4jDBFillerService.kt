@@ -49,10 +49,10 @@ class Neo4jDBFillerService(
 
         // Запрос для создания или обновления узла с меткой Rubric
         val query = """
-        MERGE (r:Rubric {cipher: ${'$'}cipher})
-        SET r.title = ${'$'}title, r.embedding = ${'$'}embedding
-        RETURN r
-        """.trimIndent()
+                    MERGE (r:Rubric {cipher: ${'$'}cipher})
+                    SET r.title = ${'$'}title, r.embedding = ${'$'}embedding
+                    RETURN r
+                    """.trimIndent()
 
         session.run(
             query, mapOf(
@@ -65,9 +65,9 @@ class Neo4jDBFillerService(
         // Если существует родительская рубрика, создаём связь HAS_CHILD
         if (parentCipher != null) {
             val relQuery = """
-            MATCH (parent:Rubric {cipher: ${'$'}parentCipher}), (child:Rubric {cipher: ${'$'}childCipher})
-            MERGE (parent)-[:HAS_CHILD]->(child)
-            """.trimIndent()
+                            MATCH (parent:Rubric {cipher: ${'$'}parentCipher}), (child:Rubric {cipher: ${'$'}childCipher})
+                            MERGE (parent)-[:HAS_CHILD]->(child)
+                           """.trimIndent()
             session.run(
                 relQuery, mapOf(
                     "parentCipher" to parentCipher,
@@ -80,12 +80,12 @@ class Neo4jDBFillerService(
         rubricNode.termList?.forEach { term ->
 
             val termQuery = """
-            MERGE (t:Term {content: ${'$'}content})
-            SET t.embedding = ${'$'}embedding
-            WITH t
-            MATCH (r:Rubric {cipher: ${'$'}cipher})
-            MERGE (t)-[:BELONGS_TO]->(r)
-            """.trimIndent()
+                            MERGE (t:Term {content: ${'$'}content})
+                            SET t.embedding = ${'$'}embedding
+                            WITH t
+                            MATCH (r:Rubric {cipher: ${'$'}cipher})
+                            MERGE (t)-[:BELONGS_TO]->(r)
+                            """.trimIndent()
 
             session.run(
                 termQuery, mapOf(
@@ -106,6 +106,6 @@ class Neo4jDBFillerService(
         driver.session().use { session ->
             session.run("MATCH (n) DETACH DELETE n")
         }
-        logger.info("База данных Neo4j очищена.")
+        logger.info("База данных Neo4j очищена")
     }
 }

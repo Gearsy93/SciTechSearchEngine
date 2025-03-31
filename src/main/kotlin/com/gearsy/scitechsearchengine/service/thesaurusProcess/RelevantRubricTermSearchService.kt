@@ -18,7 +18,6 @@ class RelevantRubricTermSearchService(
     @Autowired
     lateinit var neo4jClient: Neo4jClient
 
-    // TODO разнести ПП и поиск рубрик + терминов
     fun getQueryRelevantCSCSTIRubricList(query: String): List<CSCSTIRubricatorEmbeddedNode> {
         log.info("Начало обработки запроса: '$query'")
         val queryEmbedding = generateQueryVector(query)
@@ -33,16 +32,15 @@ class RelevantRubricTermSearchService(
         val (selectedRoots, _) = selectRootRubrics(queryEmbedding, rootRubricPairs)
 
         val selectedRubrics = expandSelectedRubrics(
-            queryEmbedding,           // queryVector: Vector
-            selectedRoots,            // selectedRoots: List<CSCSTIRubricNeo4j>
-            allRubricPairs            // allRubrics: List<Pair<CSCSTIRubricNeo4j, Vector>>
-            // можно указать кастомный penaltyThreshold при необходимости
+            queryEmbedding,
+            selectedRoots,
+            allRubricPairs
         )
 
         val rubricCiphers = selectedRubrics.map { it.cipher }
         val termsByRubric = loadTermsForRubrics(rubricCiphers)
 
-        // Собираем TermEmbeddingNode в поля selectedRubrics
+        // Сбор TermEmbeddingNode в поля selectedRubrics
         val fullRubrics = selectedRubrics.map { embedded ->
             val terms = termsByRubric[embedded.cipher]
             CSCSTIRubricNeo4j(
@@ -56,13 +54,13 @@ class RelevantRubricTermSearchService(
 
         val relevantTerms = getRelevantTermsForRubrics(fullRubrics, queryEmbedding)
 
-        // группируем термины по рубрике
+        // Группировка терминов по рубрике
         val termsByRubricGroup = fullRubrics.associateBy({ it.cipher }) { rubric ->
             val rubricTerms = rubric.termList?.map { it.content }?.toSet() ?: emptySet()
             relevantTerms.filter { it.content in rubricTerms }
         }
 
-        // собираем результат с терминами
+        // Сбор результатов с терминами
         val result = selectedRubrics.map { embeddedNode ->
             val terms = termsByRubricGroup[embeddedNode.cipher]?.takeIf { it.isNotEmpty() }
 
@@ -93,10 +91,10 @@ class RelevantRubricTermSearchService(
             )
         }
 
-// Генерация поисковых предписаний
+        // Генерация поисковых предписаний
         val searchQueries = buildSearchQueries(query, selectedRubricsForQuery)
 
-// Лог или возврат поисковых запросов
+        // Лог или возврат поисковых запросов
         searchQueries.forEachIndexed { idx, queryLocal ->
             log.info("Поисковое предписание #${idx + 1}: $queryLocal")
         }
@@ -117,18 +115,18 @@ class RelevantRubricTermSearchService(
         val cipher = rubric.cipher
         val title = rubric.title.lowercase()
 
-        // 1. Штраф по уровню рубрики (чем выше — тем больше штраф)
+        // Штраф по уровню рубрики (чем выше — тем больше штраф)
         val levelPenalty = when (cipher.count { it == '.' }) {
             0 -> 0.05  // верхний уровень, например "20"
             1 -> 0.03  // средний уровень
             else -> 0.0
         }
 
-        // 2. Штраф за ключевые "общие" слова в названии
+        // Штраф за ключевые "общие" слова в названии
         val generalTitleWords = listOf("общие вопросы", "введение", "основы", "организация", "деятельность", "информация")
         val titlePenalty = if (generalTitleWords.any { it in title }) 0.02 else 0.0
 
-        // 3. Жёсткий ручной штраф за часто всплывающие обобщённые рубрики
+        // Жёсткий ручной штраф за часто всплывающие обобщённые рубрики
         val hardcodedPenalty = when (cipher) {
             "20.15", "20.17" -> 1.0
             else -> 0.0
@@ -137,8 +135,6 @@ class RelevantRubricTermSearchService(
         return levelPenalty + titlePenalty + hardcodedPenalty
     }
 
-
-
     private fun generateQueryVector(query: String): Vector =
         Vector.of(*embeddingProcessService.generateEmbeddings(listOf(query))[0].map { it.toDouble() }.toDoubleArray())
 
@@ -146,12 +142,12 @@ class RelevantRubricTermSearchService(
         val rubricCiphersLiteral = rubricCiphers.joinToString(prefix = "[\"", separator = "\", \"", postfix = "\"]")
 
         val query = """
-    MATCH (t:Term)-[:BELONGS_TO]->(r:Rubric)
-    WHERE r.cipher IN $rubricCiphersLiteral
-    RETURN r.cipher AS rubricCipher, t.content AS content, t.embedding AS embedding
-""".trimIndent()
+                        MATCH (t:Term)-[:BELONGS_TO]->(r:Rubric)
+                        WHERE r.cipher IN $rubricCiphersLiteral
+                        RETURN r.cipher AS rubricCipher, t.content AS content, t.embedding AS embedding
+                    """.trimIndent()
 
-        println("🧪 Cypher-запрос:\n$query")
+        println("Cypher-запрос:\n$query")
 
         return neo4jClient.query(query)
             .fetch()
@@ -172,19 +168,19 @@ class RelevantRubricTermSearchService(
     fun loadAllRubricsWithChildren(): List<CSCSTIRubricNeo4j> {
         val result = neo4jClient.query(
             """
-        MATCH (r:Rubric)
-        OPTIONAL MATCH (r)-[:HAS_CHILD]->(child:Rubric)
-        RETURN
-          r.cipher AS parentCipher,
-          r.title AS parentTitle,
-          r.embedding AS parentEmbedding,
-          collect(child.cipher) AS childCiphers
-        """.trimIndent()
+                MATCH (r:Rubric)
+                OPTIONAL MATCH (r)-[:HAS_CHILD]->(child:Rubric)
+                RETURN
+                  r.cipher AS parentCipher,
+                  r.title AS parentTitle,
+                  r.embedding AS parentEmbedding,
+                  collect(child.cipher) AS childCiphers
+            """.trimIndent()
         )
-            .fetch()
-            .all()
+        .fetch()
+        .all()
 
-        // Шаг 1: создаём Map<cipher, CSCSTIRubricNeo4j> без children
+        // Создание Map<cipher, CSCSTIRubricNeo4j> без children
         val rubricMap = mutableMapOf<String, CSCSTIRubricNeo4j>()
         val childLinks = mutableMapOf<String, List<String>>() // parentCipher -> list of child ciphers
 
@@ -198,14 +194,14 @@ class RelevantRubricTermSearchService(
                 cipher = cipher,
                 title = title,
                 embedding = embedding,
-                children = null, // позже присвоим
+                children = null,
                 termList = null
             )
 
             childLinks[cipher] = childrenCiphers
         }
 
-        // Шаг 2: присваиваем children по ссылкам из Map
+        // Присваиваем children по ссылкам из Map
         for ((parentCipher, childCipherList) in childLinks) {
             val parent = rubricMap[parentCipher]
             if (parent != null) {
@@ -216,8 +212,6 @@ class RelevantRubricTermSearchService(
 
         return rubricMap.values.toList()
     }
-
-
 
     fun Vector.cosineSimilarity(other: Vector): Double {
         val dot = this.dotProduct(other)
@@ -285,7 +279,7 @@ class RelevantRubricTermSearchService(
                     centroid = newCentroid
                     log.info("Добавлена рубрика второго уровня: ${childRubric.cipher} - ${childRubric.title} (score improved: $simBefore → $simAfter)")
 
-                    // === Поиск потомков третьего уровня ===
+                    // Поиск потомков третьего уровня
                     val grandchildren = childRubric.children
                         ?.mapNotNull { grand -> allRubrics.find { it.first.cipher == grand.cipher } }
                         ?.filter { pair -> calculatePenalty(pair.first) <= penaltyThreshold }
@@ -413,7 +407,4 @@ class RelevantRubricTermSearchService(
 
         return result
     }
-
-
-
 }

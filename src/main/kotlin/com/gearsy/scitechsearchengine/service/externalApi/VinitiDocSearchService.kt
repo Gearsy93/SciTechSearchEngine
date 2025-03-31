@@ -185,12 +185,8 @@ class VinitiDocSearchService(
         // Окончание загрузки страницы
         wait.until { jsExecutor.executeScript("return document.readyState") == "complete" }
 
-
-
         // Количество найденных подходящих документов
         val totalFoundDocumentCount = 0
-
-        //  .— русский; рез. английский
 
         do {
             // Ожидание загрузки iframe и переключение на него
