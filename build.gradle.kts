@@ -1,6 +1,7 @@
 plugins {
 	kotlin("jvm") version "2.1.0"
 	kotlin("plugin.spring") version "1.9.25"
+	kotlin("plugin.jpa") version  "1.9.25"
 	kotlin("plugin.serialization") version "1.9.10"
 	id("org.springframework.boot") version "3.4.2"
 	id("io.spring.dependency-management") version "1.1.7"
@@ -36,6 +37,7 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-data-neo4j:3.4.4")
+	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -58,6 +60,8 @@ dependencies {
 	implementation("ai.djl.huggingface:tokenizers:0.32.0")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 	implementation("net.mikera:vectorz:0.67.0")
+	implementation("org.postgresql:postgresql:42.7.5")
+
 }
 
 dependencyManagement {
@@ -67,6 +71,9 @@ dependencyManagement {
 }
 
 kotlin {
+	sourceSets.main {
+		kotlin.srcDir("src/main/kotlin")
+	}
 	compilerOptions {
 		freeCompilerArgs.addAll("-Xjsr305=strict")
 	}

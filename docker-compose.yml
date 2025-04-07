@@ -1,0 +1,22 @@
+services:
+  scitech_search_pg_db:
+    image: postgres:16.2-alpine3.18
+    container_name: scitech_search_pg_db
+    environment:
+      POSTGRES_DB: "scitech_search_local"
+      POSTGRES_USER: "scisearch"
+      POSTGRES_PASSWORD: "aboba"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./migration/sql:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scisearch -d scitech_search_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+volumes:
+  scitec-search-data:
