@@ -2,6 +2,7 @@ package com.gearsy.scitechsearchengine.controller
 
 import com.gearsy.scitechsearchengine.controller.dto.query.QueryListResponseDTO
 import com.gearsy.scitechsearchengine.controller.dto.session.SessionResponseDTO
+import com.gearsy.scitechsearchengine.controller.dto.session.SessionWithTitleDTO
 import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.db.postgres.entity.Session
 import com.gearsy.scitechsearchengine.db.postgres.repository.QueryRepository
@@ -42,4 +43,11 @@ class SessionController(
         }
         return ResponseEntity.ok(dtos)
     }
+
+    @GetMapping("/titled/all")
+    fun getAllSessionsWithTitle(): ResponseEntity<List<SessionWithTitleDTO>> {
+        val sessions = sessionRepository.findAllSessionsWithTitles()
+        return ResponseEntity.ok(sessions)
+    }
+
 }
