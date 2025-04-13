@@ -22,7 +22,8 @@ class ModelLoaderService(private val modelONNXProperties: DeepVKONNXModelPropert
 
     @PostConstruct
     fun loadModelOnStartup() {
-        if (args.sourceArgs.contains("-getQueryRelevantCSCSTIRubricList")) {
+        if (args.sourceArgs.contains("-getQueryRelevantCSCSTIRubricList")
+            || args.sourceArgs.contains("-run_search_conveyor")) {
             val modelPath = File(modelONNXProperties.modelPath)
 
             if (!modelPath.exists()) {

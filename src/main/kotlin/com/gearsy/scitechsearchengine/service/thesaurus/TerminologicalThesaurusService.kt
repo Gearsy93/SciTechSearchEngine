@@ -15,9 +15,9 @@ import mikera.vectorz.Vector
 
 
 @Service
-class TermFormService(private val embeddingProcessService: EmbeddingService) {
+class TerminologicalThesaurusService(private val embeddingProcessService: EmbeddingService) {
 
-    private val logger = LoggerFactory.getLogger(TermFormService::class.java)
+    private val logger = LoggerFactory.getLogger(TerminologicalThesaurusService::class.java)
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val embeddingCache = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean {

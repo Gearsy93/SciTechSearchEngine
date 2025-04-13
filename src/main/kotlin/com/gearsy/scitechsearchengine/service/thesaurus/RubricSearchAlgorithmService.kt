@@ -13,7 +13,7 @@ import org.springframework.data.neo4j.core.Neo4jClient
 import org.springframework.stereotype.Service
 
 @Service
-class RubricSearchService(
+class RubricSearchAlgorithmService(
     private val embeddingProcessService: EmbeddingService
 ) {
 
@@ -22,7 +22,7 @@ class RubricSearchService(
     @Autowired
     lateinit var neo4jClient: Neo4jClient
 
-    fun getQueryRelevantCSCSTIRubricList(query: String): List<CSCSTIRubricatorEmbeddedNode> {
+    fun getQueryRelevantCSCSTIRubricTermList(query: String): List<CSCSTIRubricatorEmbeddedNode> {
         log.info("Начало обработки запроса: '$query'")
         val queryEmbedding = generateQueryVector(query)
 

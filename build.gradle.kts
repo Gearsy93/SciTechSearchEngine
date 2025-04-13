@@ -145,3 +145,12 @@ tasks.register<JavaExec>("runMakeECatalogSearchRequest") {
 	classpath = sourceSets["main"].runtimeClasspath
 	args = listOf("-make_e-catalog_request")
 }
+
+tasks.register<JavaExec>("runSearchConveyor") {
+	group = "application"
+	description = "Запустить конвейер поиска для тестового запроса"
+
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	classpath = sourceSets["main"].runtimeClasspath
+	args = listOf("-run_search_conveyor", "цифровая трансформация производства")
+}
