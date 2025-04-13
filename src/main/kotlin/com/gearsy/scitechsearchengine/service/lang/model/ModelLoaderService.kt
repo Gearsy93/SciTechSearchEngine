@@ -3,7 +3,7 @@ package com.gearsy.scitechsearchengine.service.lang.model
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.providers.OrtCUDAProviderOptions
-import com.gearsy.scitechsearchengine.config.properties.DeepVKONNXModelProperties
+import com.gearsy.scitechsearchengine.config.properties.USERBgeM3Properties
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service
 import java.io.File
 
 @Service
-class ModelLoaderService(private val modelONNXProperties: DeepVKONNXModelProperties,
+class ModelLoaderService(private val uSERBgeM3Properties: USERBgeM3Properties,
                          private val args: ApplicationArguments
 ) {
 
@@ -24,16 +24,16 @@ class ModelLoaderService(private val modelONNXProperties: DeepVKONNXModelPropert
     fun loadModelOnStartup() {
         if (args.sourceArgs.contains("-getQueryRelevantCSCSTIRubricList")
             || args.sourceArgs.contains("-run_search_conveyor")) {
-            val modelPath = File(modelONNXProperties.modelPath)
+            val modelPath = File(uSERBgeM3Properties.onnxPath)
 
             if (!modelPath.exists()) {
-                logger.error("Модель не найдена по пути: ${modelONNXProperties.modelPath}")
+                logger.error("Модель не найдена по пути: ${uSERBgeM3Properties.onnxPath}")
                 return
             }
 
-            logger.info("Модель '${modelONNXProperties.name}' найдена по пути: ${modelONNXProperties.modelPath}")
+            logger.info("Модель '${uSERBgeM3Properties.name}' найдена по пути: ${uSERBgeM3Properties.onnxPath}")
 
-            loadOnnxModel(modelONNXProperties.modelPath)
+            loadOnnxModel(uSERBgeM3Properties.onnxPath)
         }
     }
 

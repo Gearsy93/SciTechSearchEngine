@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration
 
 @Configuration
-@ConfigurationProperties(prefix = "api.yandex-cloud")
+@ConfigurationProperties(prefix = "external-api.yandex-cloud")
 class YandexApiProperties {
     lateinit var apiKey: String
     lateinit var searchApiUrl: String

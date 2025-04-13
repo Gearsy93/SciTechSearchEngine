@@ -1,9 +1,9 @@
 package com.gearsy.scitechsearchengine.service.external
 
 import com.gearsy.scitechsearchengine.config.properties.VinitiECatalogProperties
-import com.gearsy.scitechsearchengine.model.vinitiCatalog.CSCSTIPubData
-import com.gearsy.scitechsearchengine.model.vinitiCatalog.VinitiDocumentMeta
-import com.gearsy.scitechsearchengine.model.vinitiCatalog.VinitiServiceInput
+import com.gearsy.scitechsearchengine.model.viniti.catalog.RubricTermData
+import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiDocumentMeta
+import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import io.github.bonigarcia.wdm.WebDriverManager
 import jakarta.annotation.PreDestroy
 import org.openqa.selenium.chrome.ChromeDriver
@@ -49,10 +49,6 @@ class VinitiSearchService(
 
     }
 
-    /**
-     * Основной метод. Обрабатывает все шифры рубрик, извлекает данные с пагинацией.
-     * Логгирование добавлено для отслеживания каждого шага.
-     */
     fun makeRequest(input: VinitiServiceInput): List<VinitiDocumentMeta> {
         logger.info("Настройка ChromeDriver и запуск браузера")
         val options = ChromeOptions()
@@ -81,10 +77,6 @@ class VinitiSearchService(
         return results
     }
 
-
-    /**
-     * Авторизация: заходим на стартовую страницу и вводим логин/пароль.
-     */
     fun processAuth() {
         driver.get(startPageUrl)
         wait.until { jsExecutor.executeScript("return document.readyState") == "complete" }
@@ -95,24 +87,17 @@ class VinitiSearchService(
         wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")))
     }
 
-    /**
-     * Задает параметры поиска по конкретному шифру рубрики.
-     */
     fun processSearchParams(rubricCode: String) {
         driver.get(startPageUrl)
         wait.until { jsExecutor.executeScript("return document.readyState") == "complete" }
         logger.info("Установка параметров поиска для шифра: $rubricCode")
-        // Выбираем радиокнопку с критерием поиска
         val radioButton = wait.until(ExpectedConditions.elementToBeClickable(By.id("ctl00_ContentPlaceHolder1_RBList_1_1")))
         radioButton.click()
-        // Выбираем чекбокс рубрики ГРНТИ
         val cscstiCheckbox = wait.until(ExpectedConditions.elementToBeClickable(By.id("ctl00_ContentPlaceHolder1_CBList_1_3")))
         cscstiCheckbox.click()
-        // Вводим шифр рубрики в поле поиска
         val searchInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("ctl00_ContentPlaceHolder1_TBSearch_1")))
         searchInput.clear()
         searchInput.sendKeys(rubricCode)
-        // Выбираем способ поиска – точное соответствие (value "E")
         val dropdown = wait.until(ExpectedConditions.presenceOfElementLocated(By.id("ctl00_ContentPlaceHolder1_DDLSearch_1")))
         val select = Select(dropdown)
         select.selectByValue("E")
@@ -126,10 +111,6 @@ class VinitiSearchService(
         searchInput.sendKeys(Keys.RETURN)
     }
 
-    /**
-     * Выбор категории документов.
-     * Теперь ищем единственную ссылку, текст которой содержит "Статья".
-     */
     fun processCategoryChoice() {
         try {
             val iframe = wait.until(
@@ -156,13 +137,6 @@ class VinitiSearchService(
         driver.switchTo().defaultContent()
     }
 
-
-
-
-    /**
-     * Обработка страниц с результатами поиска.
-     * Реализована пагинация: обрабатываем до input.maxPages страниц.
-     */
     fun processPagesData(input: VinitiServiceInput) {
         var currentPage = 1
         do {
@@ -292,9 +266,9 @@ class VinitiSearchService(
                 return null
             }
 
-            val pubDataList = rubrics.mapIndexed { i, cipher ->
+            val rubricTermDataList = rubrics.mapIndexed { i, cipher ->
                 val keywords = keywordBlocks.getOrNull(i) ?: emptyList()
-                CSCSTIPubData(cipher, keywords)
+                RubricTermData(cipher, keywords)
             }
 
             return VinitiDocumentMeta(
@@ -303,7 +277,7 @@ class VinitiSearchService(
                 translateTitle = translateTitle,
                 link = sid2,
                 language = language ?: "неизвестно",
-                pubDataList = pubDataList
+                rubricTermDataList = rubricTermDataList
             )
         } catch (e: Exception) {
             logger.error("Ошибка извлечения метаданных публикации: ${e.message}")

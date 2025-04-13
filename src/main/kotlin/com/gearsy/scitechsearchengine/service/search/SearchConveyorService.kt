@@ -29,16 +29,8 @@ class SearchConveyorService(
         // Временные прикольные результаты
         val fakeResults = generateMockResults(query)
 
-        // Получаем уже сохранённые documentId для текущего запроса
-        val existingDocIds = searchResultRepository.findAllByQueryId(query.id)
-            .map { it.documentId }
-            .toSet()
-
-        // Фильтруем только новые documentId
-        val filteredResults = fakeResults.filter { it.documentId !in existingDocIds }
-
         // Сохраняем
-        val savedResults = searchResultRepository.saveAll(filteredResults)
+        val savedResults = searchResultRepository.saveAll(fakeResults)
 
         // Получаем просмотренные document.id в пределах всей сессии
         val viewedDocsInSession = viewedDocumentRepository
@@ -63,7 +55,7 @@ class SearchConveyorService(
     fun performSearchConveyor(query: String) {
 
         // Получение релевантных рубрик и терминов терминологического тезауруса
-        val rubricTermList = relevantRubricTermSearchService.getQueryRelevantCSCSTIRubricTermList(query)
+        val rubricTermList = relevantRubricTermSearchService.getRelevantTermListFromTermThesaurus(query)
 
         // Генерация
 

@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.model.vinitiCatalog
+package com.gearsy.scitechsearchengine.model.viniti.catalog
 
 import com.fasterxml.jackson.annotation.JsonInclude
 
@@ -9,5 +9,5 @@ data class VinitiDocumentMeta(
     val translateTitle: String?,
     val link: String,
     val language: String,
-    val pubDataList: List<CSCSTIPubData>
+    val rubricTermDataList: List<RubricTermData>
 )

@@ -1,10 +1,11 @@
-package com.gearsy.scitechsearchengine.service.thesaurus
+package com.gearsy.scitechsearchengine.service.thesaurus.type
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.gearsy.scitechsearchengine.config.properties.EmbeddingServiceProperties
 import com.gearsy.scitechsearchengine.controller.dto.embedding.EmbeddingRequestDTO
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
 import kotlinx.coroutines.runBlocking
@@ -15,33 +16,35 @@ import mikera.vectorz.Vector
 
 
 @Service
-class TerminologicalThesaurusService(private val embeddingProcessService: EmbeddingService) {
+class TerminologicalThesaurusService(
+    private val embeddingProcessService: EmbeddingService,
+    private val embeddingServiceProperties: EmbeddingServiceProperties
+) {
 
     private val logger = LoggerFactory.getLogger(TerminologicalThesaurusService::class.java)
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
-    private val embeddingCache = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
+    private val embeddingCache: LinkedHashMap<String, FloatArray> = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean {
             return size > 10000
         }
     }
 
-    fun generateCSCSTIThesaurusVectors(cscstiCipher: String) {
-        logger.info("Загрузка JSON для рубрики $cscstiCipher")
-        val cscstiFilePath = "src/main/resources/rubricator/cscstiEnrich/$cscstiCipher.json"
+    fun generateTermThesaurusEmbeddings(rubricatorCipher: String) {
+        logger.info("Загрузка JSON для рубрики $rubricatorCipher")
+        val rubricatorPath = "src/main/resources/rubricator/term/$rubricatorCipher.json"
         val factory = objectMapper.factory
-        val parser = factory.createParser(File(cscstiFilePath))
+        val parser = factory.createParser(File(rubricatorPath))
 
-        val cscstiJsonNode: JsonNode = objectMapper.readTree(parser)
+        val rubricatorJsonNode: JsonNode = objectMapper.readTree(parser)
 
-        val updatedJson = processRubric(cscstiJsonNode)
+        val updatedJson = generateRubricTermEmbeddings(rubricatorJsonNode)
 
-
-        val outputPath = "src/main/resources/rubricator/cscstiEmbeddings/$cscstiCipher.json"
+        val outputPath = "src/main/resources/rubricator/embedding/$rubricatorCipher.json"
         objectMapper.writeValue(File(outputPath), updatedJson)
         logger.info("Файл с эмбеддингами сохранен: $outputPath")
     }
 
-    private fun processRubric(node: JsonNode): JsonNode {
+    private fun generateRubricTermEmbeddings(node: JsonNode): JsonNode {
         val updatedNode = objectMapper.createObjectNode()
         val cipher = node.get("cipher")?.asText() ?: ""
         val title = node.get("title")?.asText() ?: ""
@@ -52,13 +55,11 @@ class TerminologicalThesaurusService(private val embeddingProcessService: Embedd
         val termList = node.get("termList")
             ?.mapNotNull { it.get("content")?.asText() }
             ?.distinct()
-            ?.take(3000)
+            ?.take(embeddingServiceProperties.maxEmbeddingTermCount.toInt())
             ?: emptyList()
 
-
-
-        val termEmbeddings = runBlocking { generateTermEmbeddings(termList, title) }
-        val childNodes = node.get("children")?.map { processRubric(it) } ?: emptyList()
+        val termEmbeddings = runBlocking { generateTermListEmbeddings(termList, title) }
+        val childNodes = node.get("children")?.map { generateRubricTermEmbeddings(it) } ?: emptyList()
 
         val rubricEmbedding = if (childNodes.isEmpty()) {
             runBlocking {computeSentenceEmbedding(termList, title)}
@@ -75,10 +76,10 @@ class TerminologicalThesaurusService(private val embeddingProcessService: Embedd
         return updatedNode
     }
 
-    private suspend fun generateTermEmbeddings(terms: List<String>, title: String): List<Map<String, Any>> {
+    private suspend fun generateTermListEmbeddings(terms: List<String>, title: String): List<Map<String, Any>> {
         if (terms.isEmpty()) return emptyList()
 
-        val requests = terms.map { term ->
+        val pythonServiceRequests = terms.map { term ->
             EmbeddingRequestDTO(
                 term = term,
                 context = terms.filterNot { it == term },
@@ -86,13 +87,12 @@ class TerminologicalThesaurusService(private val embeddingProcessService: Embedd
             )
         }
 
-        val chunked = requests.chunked(128)
+        val chunked = pythonServiceRequests.chunked(128)
         val embeddings = mutableListOf<List<Float>>()
 
         for (chunk in chunked) {
             embeddings += embeddingProcessService.requestBatchEmbeddings(chunk)
         }
-
 
         return terms.mapIndexed { index, term ->
             mapOf(
@@ -102,13 +102,12 @@ class TerminologicalThesaurusService(private val embeddingProcessService: Embedd
         }
     }
 
-    suspend fun computeSentenceEmbedding(terms: List<String>, title: String): FloatArray {
-        val maxTerms = 800
-        val sentenceKey = (terms + title).take(maxTerms).joinToString(", ")
+    suspend fun computeSentenceEmbedding(termList: List<String>, title: String): FloatArray {
+        val sentenceKey = (termList + title).take(embeddingServiceProperties.maxEmbeddingTermCount.toInt()).joinToString(", ")
 
         return embeddingCache.getOrPut(sentenceKey) {
             runBlocking {
-                embeddingProcessService.requestRubricEmbedding(title, terms).toFloatArray()
+                embeddingProcessService.requestRubricEmbedding(title, termList).toFloatArray()
             }
         }
     }

@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.config.properties
+package com.gearsy.scitechsearchengine.config.properties.spring
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration
@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration
 class Neo4jProperties {
     lateinit var uri: String
     lateinit var authentication: Authentication
-    var useStrictNodeIds: Boolean = false
 
     class Authentication {
         lateinit var username: String

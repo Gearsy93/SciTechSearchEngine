@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.model.vinitiCatalog
+package com.gearsy.scitechsearchengine.model.viniti.catalog
 
 import com.fasterxml.jackson.annotation.JsonInclude
 

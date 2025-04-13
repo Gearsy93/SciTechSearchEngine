@@ -4,7 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration
 
 @Configuration
-@ConfigurationProperties(prefix = "model.deepvk.safetensors")
-class DeepVKSafeTensorsModelProperties {
-    lateinit var modelPath: String
+@ConfigurationProperties(prefix = "query-expansion")
+class QueryExpansionProperties {
+    lateinit var maxTermsPerQuery: String
+    lateinit var maxCharsPerQuery: String
 }

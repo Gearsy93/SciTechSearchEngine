@@ -1,4 +1,4 @@
-package com.gearsy.scitechsearchengine.model.engine
+package com.gearsy.scitechsearchengine.model.conveyor
 
 data class SelectedRubric(
     val cipher: String,

@@ -2,7 +2,8 @@ package com.gearsy.scitechsearchengine.service.lang.model
 
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
 import ai.onnxruntime.OnnxTensor
-import com.gearsy.scitechsearchengine.config.properties.DeepVKONNXModelProperties
+import com.gearsy.scitechsearchengine.config.properties.EmbeddingServiceProperties
+import com.gearsy.scitechsearchengine.config.properties.USERBgeM3Properties
 import com.gearsy.scitechsearchengine.controller.dto.embedding.EmbeddingRequestDTO
 import com.gearsy.scitechsearchengine.controller.dto.embedding.EmbeddingResponseDTO
 import com.gearsy.scitechsearchengine.controller.dto.embedding.RubricEmbeddingRequestDTO
@@ -23,8 +24,11 @@ import io.ktor.http.contentType
 
 @Service
 class EmbeddingService(private val modelLoader: ModelLoaderService,
-                       private val modelProperties: DeepVKONNXModelProperties
+                       private val userBgeM3Properties: USERBgeM3Properties,
+                       embeddingServiceProperties: EmbeddingServiceProperties,
 ) {
+
+    val serviceAddress = "http://${embeddingServiceProperties.host}:${embeddingServiceProperties.port}"
 
     suspend fun requestPythonEmbedding(term: String, context: List<String>, title: String): List<Float> {
         val client = HttpClient(CIO) {
@@ -36,7 +40,7 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
             }
         }
 
-        val response: EmbeddingResponseDTO = client.post("http://localhost:8001/embedding") {
+        val response: EmbeddingResponseDTO = client.post("${serviceAddress}/embedding") {
             contentType(ContentType.Application.Json)
             setBody(EmbeddingRequestDTO(term, context, title))
         }.body()
@@ -46,10 +50,10 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
     }
 
     suspend fun requestBatchEmbeddings(requests: List<EmbeddingRequestDTO>): List<List<Float>> {
-        println("request count: ${requests.size}")
+        println("Request count: ${requests.size}")
         val client = HttpClient(CIO) {
             install(HttpTimeout) {
-                requestTimeoutMillis = 180_000  // 120 секунд
+                requestTimeoutMillis = 180_000
                 connectTimeoutMillis = 30_000
                 socketTimeoutMillis = 120_000
             }
@@ -61,7 +65,7 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
             }
         }
 
-        val response: List<EmbeddingResponseDTO> = client.post("http://localhost:8001/embedding/batch") {
+        val response: List<EmbeddingResponseDTO> = client.post("${serviceAddress}/batch") {
             contentType(ContentType.Application.Json)
             setBody(requests)
         }.body()
@@ -85,7 +89,7 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
 
         val payload = RubricEmbeddingRequestDTO(title, terms)
 
-        val response: EmbeddingResponseDTO = client.post("http://localhost:8001/embedding/rubric") {
+        val response: EmbeddingResponseDTO = client.post("${serviceAddress}/rubric") {
             contentType(ContentType.Application.Json)
             setBody(payload)
         }.body()
@@ -94,16 +98,14 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
         return response.embedding
     }
 
-
-
     fun generateEmbeddings(texts: List<String>): List<List<Float>> {
         val environment = modelLoader.environment
         val session = modelLoader.onnxSession
         val tokenizer: HuggingFaceTokenizer =
-            HuggingFaceTokenizer.newInstance(Paths.get(modelProperties.tokenizerPath))
+            HuggingFaceTokenizer.newInstance(Paths.get(userBgeM3Properties.tokenizerPath))
 
+        // Токенизация
         val encodings = tokenizer.batchEncode(texts)
-
         val inputIdsData = encodings.map { it.ids }.toTypedArray()
         val attentionMaskData = encodings.map { it.attentionMask }.toTypedArray()
 
@@ -115,10 +117,10 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
             attentionMaskTensor = OnnxTensor.createTensor(environment, attentionMaskData)
         }
         catch (e: Exception) {
-            println(e)
             throw e
         }
 
+        // Работа в моделью
         return try {
             val inputs = mapOf(
                 "input_ids" to inputIdsTensor,
@@ -126,7 +128,7 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
             )
 
             session.run(inputs).use { result ->
-                val outputTensor = result["sentence_embedding"] // Используем "sentence_embedding"
+                val outputTensor = result["sentence_embedding"]
                     ?.takeIf { it.isPresent }
                     ?.get()
                     ?.value as? Array<FloatArray>

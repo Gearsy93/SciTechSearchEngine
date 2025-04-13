@@ -1,11 +1,9 @@
 package com.gearsy.scitechsearchengine.service.thesaurus
 
-import com.gearsy.scitechsearchengine.model.engine.RelevantTerm
-import com.gearsy.scitechsearchengine.model.engine.SelectedRubric
-import com.gearsy.scitechsearchengine.db.neo4j.entity.CSCSTIRubricNeo4j
-import com.gearsy.scitechsearchengine.db.neo4j.entity.TermEmbeddingNode
-import com.gearsy.scitechsearchengine.model.thesaurus.CSCSTIRubricatorEmbeddedNode
+import com.gearsy.scitechsearchengine.model.conveyor.RelevantTerm
+import com.gearsy.scitechsearchengine.model.conveyor.SelectedRubric
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
+import com.gearsy.scitechsearchengine.utils.Neo4jDriverProvider
 import mikera.vectorz.Vector
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -14,15 +12,14 @@ import org.springframework.stereotype.Service
 
 @Service
 class RubricSearchAlgorithmService(
+    neo4jDriverProvider: Neo4jDriverProvider,
     private val embeddingProcessService: EmbeddingService
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Autowired
-    lateinit var neo4jClient: Neo4jClient
+    fun getRelevantTermListFromTermThesaurus(query: String): List<> {
 
-    fun getQueryRelevantCSCSTIRubricTermList(query: String): List<CSCSTIRubricatorEmbeddedNode> {
         log.info("Начало обработки запроса: '$query'")
         val queryEmbedding = generateQueryVector(query)
 
@@ -68,7 +65,7 @@ class RubricSearchAlgorithmService(
         val result = selectedRubrics.map { embeddedNode ->
             val terms = termsByRubricGroup[embeddedNode.cipher]?.takeIf { it.isNotEmpty() }
 
-            CSCSTIRubricatorEmbeddedNode(
+            rubricatorEmbeddedNode(
                 cipher = embeddedNode.cipher,
                 title = embeddedNode.title,
                 embedding = embeddedNode.embedding,
@@ -94,15 +91,6 @@ class RubricSearchAlgorithmService(
                 }
             )
         }
-
-        // Генерация поисковых предписаний
-        val searchQueries = buildSearchQueries(query, selectedRubricsForQuery)
-
-        // Лог или возврат поисковых запросов
-        searchQueries.forEachIndexed { idx, queryLocal ->
-            log.info("Поисковое предписание #${idx + 1}: $queryLocal")
-        }
-
         return result
     }
 
@@ -365,50 +353,5 @@ class RubricSearchAlgorithmService(
         return relevantTerms
     }
 
-    fun buildSearchQueries(
-        originalQuery: String,
-        selectedRubrics: List<SelectedRubric>,
-        maxTermsPerQuery: Int = 10,
-        maxCharsPerQuery: Int = 256
-    ): List<String> {
-        val result = mutableListOf<String>()
 
-        // Сначала по одному наиболее релевантному термину из каждой рубрики
-        val balancedTerms = selectedRubrics
-            .mapNotNull { it.relevantTerms.maxByOrNull { term -> term.similarity } }
-            .distinctBy { it.content }
-
-        // Затем глобальные термины по убыванию similarity
-        val globalTerms = selectedRubrics
-            .flatMap { it.relevantTerms }
-            .distinctBy { it.content }
-            .sortedByDescending { it.similarity }
-
-        // Объединённый список терминов без повторов
-        val allTerms = (balancedTerms + globalTerms)
-            .distinctBy { it.content }
-
-        // Формируем поисковые запросы с учетом ограничений
-        var currentQuery = StringBuilder(originalQuery)
-        var currentTermCount = 0
-
-        for (term in allTerms) {
-            val formatted = term.content
-            val next = " | $formatted"
-            if (currentTermCount + 1 > maxTermsPerQuery || currentQuery.length + next.length > maxCharsPerQuery) {
-                result.add(currentQuery.toString())
-                currentQuery = StringBuilder(originalQuery).append(" | $formatted")
-                currentTermCount = 1
-            } else {
-                currentQuery.append(next)
-                currentTermCount++
-            }
-        }
-
-        if (currentQuery.isNotEmpty() && !result.contains(currentQuery.toString())) {
-            result.add(currentQuery.toString())
-        }
-
-        return result
-    }
 }

@@ -4,10 +4,14 @@ from typing import List
 from FlagEmbedding import BGEM3FlagModel
 from numpy.linalg import norm
 import torch
+import os
+
+resources_path = os.path.dirname(os.path.dirname(os.getcwd()))
+safetensors_path = os.path.join(resources_path, "resources", "model", "checkpoint", "safetensors")
 
 app = FastAPI()
 model = BGEM3FlagModel(
-    "D://Project//HSE//SciTechSearchEngine//src//main//resources//model//checkpoint//safetensors",
+    safetensors_path.replace("\\", "//"),
     use_fp16=True,
     device="cuda"
 )

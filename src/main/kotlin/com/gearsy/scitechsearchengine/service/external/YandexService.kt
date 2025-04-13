@@ -2,7 +2,7 @@ package com.gearsy.scitechsearchengine.service.external
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.YandexApiProperties
-import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResult
+import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
 import org.slf4j.LoggerFactory
 import org.springframework.http.*
 import org.springframework.stereotype.Service
@@ -136,8 +136,6 @@ class YandexService(
                     "${resultApiUrl}${requestId}", HttpMethod.GET, requestEntity, String::class.java
                 )
 
-
-                // Проверяем, что тело ответа не null и не пустое
                 val responseBody = response.body ?: "{}"
 
                 if (response.statusCode.is2xxSuccessful) {
@@ -157,7 +155,6 @@ class YandexService(
                     }
                 }
 
-//            return jsonResponse["id"].toString()
             } catch (ex: Exception) {
                 logger.error("Error while calling Yandex API", ex)
             }
@@ -174,14 +171,12 @@ class YandexService(
         return try {
             val decodedBytes = Base64.getDecoder().decode(base64Result)
             val decodedString = String(decodedBytes, Charsets.UTF_8)
-
-            // Обрабатываем XML вместо JSON
             val documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
             val inputStream = ByteArrayInputStream(decodedString.toByteArray(Charsets.UTF_8))
             val document = documentBuilder.parse(inputStream)
             document.documentElement.normalize()
 
-            document // Возвращаем XML-документ
+            document
         } catch (ex: Exception) {
             logger.error("Ошибка при декодировании Base64 или разборе XML", ex)
             throw ex
@@ -193,14 +188,14 @@ class YandexService(
             val transformer = TransformerFactory.newInstance().newTransformer()
             val writer = StringWriter()
             transformer.transform(DOMSource(doc), StreamResult(writer))
-            writer.toString()  // Получаем полное XML в виде строки
+            writer.toString()
         } catch (ex: Exception) {
             "Ошибка преобразования XML в строку: ${ex.message}"
         }
     }
 
-    fun getDocumentResultObjectList(xmlDoc: Document): List<YandexSearchResult> {
-        val results = mutableListOf<YandexSearchResult>()
+    fun getDocumentResultObjectList(xmlDoc: Document): List<YandexSearchResultModel> {
+        val results = mutableListOf<YandexSearchResultModel>()
         val docNodes: NodeList = xmlDoc.getElementsByTagName("doc")
 
         for (i in 0 until docNodes.length) {
@@ -217,13 +212,13 @@ class YandexService(
             }
 
             if (url != null) {
-                results.add(YandexSearchResult(documentId = docId, url = url))
+                results.add(YandexSearchResultModel(documentId = docId, url = url))
             }
         }
         return results
     }
 
-    fun downloadFiles(resultList: List<YandexSearchResult>, requestId: String) {
+    fun downloadFiles(resultList: List<YandexSearchResultModel>, requestId: String) {
         val downloadPath = "src/main/resources/yandexDownloads/$requestId"
         val isCreated = createFolder(downloadPath)
         println(if (isCreated) "Папка создана: $downloadPath" else "Папка уже существует")
@@ -234,7 +229,6 @@ class YandexService(
                 var fileName = result.documentId + "_" + fileUrl.path.substringAfterLast("/")
                 val filePath = Paths.get(downloadPath, fileName).toString()
 
-                // Проверяем, есть ли у файла расширение, если нет – добавляем .pdf
                 if (!fileName.contains(".")) {
                     fileName += ".pdf"
                 }
