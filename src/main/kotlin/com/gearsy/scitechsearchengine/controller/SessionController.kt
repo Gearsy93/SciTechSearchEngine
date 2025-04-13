@@ -1,11 +1,12 @@
 package com.gearsy.scitechsearchengine.controller
 
 import com.gearsy.scitechsearchengine.controller.dto.query.QueryListResponseDTO
+import com.gearsy.scitechsearchengine.controller.dto.search.SearchResultResponseDTO
 import com.gearsy.scitechsearchengine.controller.dto.session.SessionResponseDTO
 import com.gearsy.scitechsearchengine.controller.dto.session.SessionWithTitleDTO
-import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.db.postgres.entity.Session
 import com.gearsy.scitechsearchengine.db.postgres.repository.QueryRepository
+import com.gearsy.scitechsearchengine.db.postgres.repository.SearchResultRepository
 import com.gearsy.scitechsearchengine.db.postgres.repository.SessionRepository
 import com.gearsy.scitechsearchengine.service.session.SessionService
 import org.springframework.http.HttpStatus
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*
 class SessionController(
     private val sessionService: SessionService,
     private val sessionRepository: SessionRepository,
+    private val searchResultRepository: SearchResultRepository,
     private val queryRepository: QueryRepository
 ) {
     @PostMapping("/create")
@@ -48,6 +50,24 @@ class SessionController(
     fun getAllSessionsWithTitle(): ResponseEntity<List<SessionWithTitleDTO>> {
         val sessions = sessionRepository.findAllSessionsWithTitles()
         return ResponseEntity.ok(sessions)
+    }
+
+    @GetMapping("/{sessionId}/viewed")
+    fun getViewedDocuments(@PathVariable sessionId: Long): ResponseEntity<List<SearchResultResponseDTO>> {
+        val results = searchResultRepository.findViewedBySessionId(sessionId)
+
+        val dtos = results.map {
+            SearchResultResponseDTO(
+                id = it.id,
+                documentUrl = it.documentUrl,
+                title = it.title,
+                snippet = it.snippet,
+                score = it.score!!,
+                viewed = true
+            )
+        }
+
+        return ResponseEntity.ok(dtos)
     }
 
 }

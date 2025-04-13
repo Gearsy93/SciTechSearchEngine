@@ -12,6 +12,9 @@ data class ViewedDocument(
     @JoinColumn(name = "query_id", nullable = false)
     val query: Query,
 
-    @Column(name = "document_id", nullable = false)
-    val documentId: String
+    @ManyToOne
+    @JoinColumn(name = "document_id", referencedColumnName = "id")
+    val document: SearchResult
+
+
 )

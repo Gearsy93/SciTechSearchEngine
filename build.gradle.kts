@@ -44,7 +44,6 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.springframework.ai:spring-ai-neo4j-store-spring-boot-starter")
 	implementation("org.springframework.ai:spring-ai-transformers-spring-boot-starter")
-	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	implementation("io.github.bonigarcia:webdrivermanager:5.9.2")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -61,7 +60,6 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 	implementation("net.mikera:vectorz:0.67.0")
 	implementation("org.postgresql:postgresql:42.7.5")
-
 }
 
 dependencyManagement {

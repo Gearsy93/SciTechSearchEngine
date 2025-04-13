@@ -53,7 +53,7 @@ class VinitiSearchService(
         WebDriverManager.chromedriver().setup()
 
         // Авторизация
-        processAuth() //👆
+        processAuth()
 
         // Выставление параметров поиска на рубрики ГРНТИ
         processSearchParams(cscstiRubricCipher)
