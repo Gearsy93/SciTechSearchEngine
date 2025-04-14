@@ -1,12 +1,13 @@
 package com.gearsy.scitechsearchengine.db.neo4j.repository
 
 import com.gearsy.scitechsearchengine.db.neo4j.entity.TermNode
+import com.gearsy.scitechsearchengine.db.neo4j.repository.projection.RubricTermProjection
 import org.springframework.data.neo4j.repository.query.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @Repository
-interface ThesaurusNeo4jRepository {
+interface TermNeo4jRepository {
 
     @Query("MERGE (t:Term {content: \$content}) " +
         "SET t.embedding = \$embedding, " +
@@ -16,7 +17,6 @@ interface ThesaurusNeo4jRepository {
         "WITH t " +
         "MATCH (r:Rubric {cipher: \$cipher}) " +
         "MERGE (t)-[:BELONGS_TO]->(r) ")
-
     fun createOrUpdateTerm(
         @Param("content") content: String,
         @Param("embedding") embedding: List<Double>,
@@ -26,11 +26,20 @@ interface ThesaurusNeo4jRepository {
         @Param("queryId") queryId: Long?
     )
 
-    // 🔹 Пример специфичного метода для контекстного тезауруса
+    @Query(
+        "MATCH (t:Term)-[:BELONGS_TO]->(r:Rubric) " +
+                "WHERE r.cipher IN \$rubricCiphers " +
+                "RETURN r.cipher AS rubricCipher, t.content AS content, t.embedding AS embedding"
+    )
+    fun loadTermsFromTermThesaurus(
+        @Param("rubricCiphers") rubricCiphers: List<String>
+    ): List<RubricTermProjection>
+
+
     @Query("MATCH (t:Term) " +
         "WHERE t.thesaurusType = 'CONTEXTUAL' AND t.sessionId = \$sessionId " +
         "RETURN t")
-    fun findAllContextualTerms(@Param("sessionId") sessionId: Long): List<TermNode>
+    fun findContextualTerms(@Param("sessionId") sessionId: Long): List<TermNode>
 
     @Query("MATCH (t:Term) " +
        "WHERE t.thesaurusType = 'ITERATIVE' " +

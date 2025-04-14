@@ -20,7 +20,6 @@ class TerminologicalThesaurusService(
     private val embeddingProcessService: EmbeddingService,
     private val embeddingServiceProperties: EmbeddingServiceProperties
 ) {
-
     private val logger = LoggerFactory.getLogger(TerminologicalThesaurusService::class.java)
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val embeddingCache: LinkedHashMap<String, FloatArray> = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
@@ -118,7 +117,7 @@ class TerminologicalThesaurusService(
         title: String
     ): FloatArray {
 
-        val rubricEmbeddingArray = runBlocking {computeSentenceEmbedding(terms, title) } // FloatArray
+        val rubricEmbeddingArray = runBlocking {computeSentenceEmbedding(terms, title) }
         val rubricEmbedding = Vector.of(*rubricEmbeddingArray.map { it.toDouble() }.toDoubleArray())
 
         // Получаем векторы дочерних рубрик

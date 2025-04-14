@@ -5,7 +5,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
 import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
 import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricNeo4jRepository
-import com.gearsy.scitechsearchengine.db.neo4j.repository.ThesaurusNeo4jRepository
+import com.gearsy.scitechsearchengine.db.neo4j.repository.TermNeo4jRepository
 import com.gearsy.scitechsearchengine.utils.Neo4jDriverProvider
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -15,7 +15,7 @@ import java.io.File
 class RubricImportService(
     private val neo4jDriverProvider: Neo4jDriverProvider,
     private val rubricRepository: RubricNeo4jRepository,
-    private val termRepository: ThesaurusNeo4jRepository
+    private val termRepository: TermNeo4jRepository
 ) {
     val mapper = jacksonObjectMapper()
 

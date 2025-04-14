@@ -1,34 +1,40 @@
 package com.gearsy.scitechsearchengine.service.thesaurus
 
+import com.gearsy.scitechsearchengine.config.properties.RelevantTermRubricProperties
+import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
+import com.gearsy.scitechsearchengine.db.neo4j.entity.TermNode
+import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
+import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricNeo4jRepository
+import com.gearsy.scitechsearchengine.db.neo4j.repository.TermNeo4jRepository
 import com.gearsy.scitechsearchengine.model.conveyor.RelevantTerm
 import com.gearsy.scitechsearchengine.model.conveyor.SelectedRubric
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
 import com.gearsy.scitechsearchengine.utils.Neo4jDriverProvider
 import mikera.vectorz.Vector
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.data.neo4j.core.Neo4jClient
 import org.springframework.stereotype.Service
 
 @Service
 class RubricSearchAlgorithmService(
-    neo4jDriverProvider: Neo4jDriverProvider,
-    private val embeddingProcessService: EmbeddingService
+    private val rubricRepository: RubricNeo4jRepository,
+    private val termRepository: TermNeo4jRepository,
+    private val embeddingProcessService: EmbeddingService,
+    private val relevantTermRubricProperties: RelevantTermRubricProperties
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun getRelevantTermListFromTermThesaurus(query: String): List<> {
+    fun getRelevantTermListFromTermThesaurus(query: String): List<RubricNode> {
 
         log.info("Начало обработки запроса: '$query'")
         val queryEmbedding = generateQueryVector(query)
 
         val allRubrics = loadAllRubricsWithChildren()
 
-        val rootRubrics = getRootRubricsFrom(allRubrics)
+        val rootRubrics = getRootRubrics(allRubrics)
 
-        val allRubricPairs = allRubrics.map { it to Vector.of(*it.embedding!!.toDoubleArray()) }
-        val rootRubricPairs = rootRubrics.map { it to Vector.of(*it.embedding!!.toDoubleArray()) }
+        val allRubricPairs = allRubrics.map { it to Vector.of(*it.embedding.toDoubleArray()) }
+        val rootRubricPairs = rootRubrics.map { it to Vector.of(*it.embedding.toDoubleArray()) }
 
         val (selectedRoots, _) = selectRootRubrics(queryEmbedding, rootRubricPairs)
 
@@ -41,19 +47,19 @@ class RubricSearchAlgorithmService(
         val rubricCiphers = selectedRubrics.map { it.cipher }
         val termsByRubric = loadTermsForRubrics(rubricCiphers)
 
-        // Сбор TermEmbeddingNode в поля selectedRubrics
+        // Сбор TermNode в поля selectedRubrics
         val fullRubrics = selectedRubrics.map { embedded ->
             val terms = termsByRubric[embedded.cipher]
-            CSCSTIRubricNeo4j(
+            RubricNode(
                 cipher = embedded.cipher,
                 title = embedded.title,
-                embedding = embedded.embedding?.map { it },
-                children = null,
-                termList = terms
+                embedding = embedded.embedding.map { it },
+                termList = terms,
+                thesaurusType = ThesaurusType.TERMINOLOGICAL
             )
         }
 
-        val relevantTerms = getRelevantTermsForRubrics(fullRubrics, queryEmbedding)
+        val relevantTerms = getRelevantTermListForRubrics(fullRubrics, queryEmbedding)
 
         // Группировка терминов по рубрике
         val termsByRubricGroup = fullRubrics.associateBy({ it.cipher }) { rubric ->
@@ -65,11 +71,12 @@ class RubricSearchAlgorithmService(
         val result = selectedRubrics.map { embeddedNode ->
             val terms = termsByRubricGroup[embeddedNode.cipher]?.takeIf { it.isNotEmpty() }
 
-            rubricatorEmbeddedNode(
+            RubricNode(
                 cipher = embeddedNode.cipher,
                 title = embeddedNode.title,
                 embedding = embeddedNode.embedding,
-                termList = terms
+                termList = terms,
+                thesaurusType = ThesaurusType.TERMINOLOGICAL
             )
         }
 
@@ -94,33 +101,33 @@ class RubricSearchAlgorithmService(
         return result
     }
 
-    fun getRootRubricsFrom(rubrics: List<CSCSTIRubricNeo4j>): List<CSCSTIRubricNeo4j> {
+    fun getRootRubrics(rubrics: List<RubricNode>): List<RubricNode> {
         val allChildCiphers = rubrics
-            .flatMap { it.children ?: emptyList() }
+            .flatMap { it.children }
             .map { it.cipher }
             .toSet()
 
         return rubrics.filter { it.cipher !in allChildCiphers }
     }
 
-    fun calculatePenalty(rubric: CSCSTIRubricNeo4j): Double {
+    fun calculatePenalty(rubric: RubricNode): Double {
         val cipher = rubric.cipher
         val title = rubric.title.lowercase()
 
         // Штраф по уровню рубрики (чем выше — тем больше штраф)
         val levelPenalty = when (cipher.count { it == '.' }) {
-            0 -> 0.05  // верхний уровень, например "20"
-            1 -> 0.03  // средний уровень
-            else -> 0.0
+            0 -> relevantTermRubricProperties.penaltyLevelZero.toDouble()
+            1 -> relevantTermRubricProperties.penaltyLevelOne.toDouble()
+            else -> relevantTermRubricProperties.penaltyOtherLevel.toDouble()
         }
 
         // Штраф за ключевые "общие" слова в названии
         val generalTitleWords = listOf("общие вопросы", "введение", "основы", "организация", "деятельность", "информация")
-        val titlePenalty = if (generalTitleWords.any { it in title }) 0.02 else 0.0
+        val titlePenalty = if (generalTitleWords.any { it in title }) relevantTermRubricProperties.penaltyTitle.toDouble() else 0.0
 
         // Жёсткий ручной штраф за часто всплывающие обобщённые рубрики
         val hardcodedPenalty = when (cipher) {
-            "20.15", "20.17" -> 1.0
+            "20.15", "20.17" -> relevantTermRubricProperties.penaltyHardcode.toDouble()
             else -> 0.0
         }
 
@@ -130,70 +137,42 @@ class RubricSearchAlgorithmService(
     private fun generateQueryVector(query: String): Vector =
         Vector.of(*embeddingProcessService.generateEmbeddings(listOf(query))[0].map { it.toDouble() }.toDoubleArray())
 
-    fun loadTermsForRubrics(rubricCiphers: List<String>): Map<String, List<TermEmbeddingNode>> {
-        val rubricCiphersLiteral = rubricCiphers.joinToString(prefix = "[\"", separator = "\", \"", postfix = "\"]")
-
-        val query = """
-                        MATCH (t:Term)-[:BELONGS_TO]->(r:Rubric)
-                        WHERE r.cipher IN $rubricCiphersLiteral
-                        RETURN r.cipher AS rubricCipher, t.content AS content, t.embedding AS embedding
-                    """.trimIndent()
-
-        println("Cypher-запрос:\n$query")
-
-        return neo4jClient.query(query)
-            .fetch()
-            .all()
-            .also { result -> println("📦 Получено ${result.size} записей терминов.") }
-            .groupBy(
-                keySelector = { it["rubricCipher"] as String },
-                valueTransform = { record ->
-                    TermEmbeddingNode(
-                        content = record["content"] as String,
-                        embedding = (record["embedding"] as List<*>).map { (it as Number).toDouble() }
-                    )
-                }
-            )
-
+    fun loadTermsForRubrics(rubricCiphers: List<String>): Map<String, List<TermNode>> {
+        return termRepository.loadTermsFromTermThesaurus(rubricCiphers).groupBy(
+            keySelector = { it.getRubricCipher() },
+            valueTransform = {
+                TermNode(
+                    content = it.getContent(),
+                    embedding = it.getEmbedding(),
+                    type = ThesaurusType.TERMINOLOGICAL
+                )
+            }
+        )
     }
 
-    fun loadAllRubricsWithChildren(): List<CSCSTIRubricNeo4j> {
-        val result = neo4jClient.query(
-            """
-                MATCH (r:Rubric)
-                OPTIONAL MATCH (r)-[:HAS_CHILD]->(child:Rubric)
-                RETURN
-                  r.cipher AS parentCipher,
-                  r.title AS parentTitle,
-                  r.embedding AS parentEmbedding,
-                  collect(child.cipher) AS childCiphers
-            """.trimIndent()
-        )
-        .fetch()
-        .all()
+    fun loadAllRubricsWithChildren(): List<RubricNode> {
+        val projections = rubricRepository.loadRubricHierarchy()
 
-        // Создание Map<cipher, CSCSTIRubricNeo4j> без children
-        val rubricMap = mutableMapOf<String, CSCSTIRubricNeo4j>()
-        val childLinks = mutableMapOf<String, List<String>>() // parentCipher -> list of child ciphers
+        val rubricMap = mutableMapOf<String, RubricNode>()
+        val childLinks = mutableMapOf<String, List<String>>()
 
-        for (record in result) {
-            val cipher = record["parentCipher"] as String
-            val title = record["parentTitle"] as String
-            val embedding = (record["parentEmbedding"] as? List<*>)?.map { (it as Number).toDouble() }
-            val childrenCiphers = (record["childCiphers"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        for (record in projections) {
+            val cipher = record.getParentCipher()
+            val title = record.getParentTitle()
+            val embedding = record.getParentEmbedding()
+            val childrenCiphers = record.getChildCiphers()
 
-            rubricMap[cipher] = CSCSTIRubricNeo4j(
+            rubricMap[cipher] = RubricNode(
                 cipher = cipher,
                 title = title,
                 embedding = embedding,
-                children = null,
-                termList = null
+                termList = null,
+                thesaurusType = ThesaurusType.TERMINOLOGICAL
             )
 
             childLinks[cipher] = childrenCiphers
         }
 
-        // Присваиваем children по ссылкам из Map
         for ((parentCipher, childCipherList) in childLinks) {
             val parent = rubricMap[parentCipher]
             if (parent != null) {
@@ -215,9 +194,9 @@ class RubricSearchAlgorithmService(
 
     private fun selectRootRubrics(
         queryVector: Vector,
-        rootRubrics: List<Pair<CSCSTIRubricNeo4j, Vector>>
-    ): Pair<List<CSCSTIRubricNeo4j>, Vector> {
-        val selected = mutableListOf<CSCSTIRubricNeo4j>()
+        rootRubrics: List<Pair<RubricNode, Vector>>
+    ): Pair<List<RubricNode>, Vector> {
+        val selected = mutableListOf<RubricNode>()
         var centroid: Vector? = null
 
         for ((rubric, embedding) in rootRubrics.sortedByDescending { it.second.cosineSimilarity(queryVector) }) {
@@ -242,22 +221,22 @@ class RubricSearchAlgorithmService(
 
     private fun expandSelectedRubrics(
         queryVector: Vector,
-        selectedRoots: List<CSCSTIRubricNeo4j>,
-        allRubrics: List<Pair<CSCSTIRubricNeo4j, Vector>>,
+        selectedRoots: List<RubricNode>,
+        allRubrics: List<Pair<RubricNode, Vector>>,
         penaltyThreshold: Double = 0.5
-    ): List<CSCSTIRubricNeo4j> {
-        val selected = mutableListOf<CSCSTIRubricNeo4j>()
+    ): List<RubricNode> {
+        val selected = mutableListOf<RubricNode>()
         var centroid: Vector? = null
 
         for (root in selectedRoots) {
             val children = root.children
-                ?.mapNotNull { child -> allRubrics.find { it.first.cipher == child.cipher } }
-                ?.filter { pair -> calculatePenalty(pair.first) <= penaltyThreshold }
-                ?.sortedByDescending { pair ->
+                .mapNotNull { child -> allRubrics.find { it.first.cipher == child.cipher } }
+                .filter { pair -> calculatePenalty(pair.first) <= penaltyThreshold }
+                .sortedByDescending { pair ->
                     val sim = pair.second.cosineSimilarity(queryVector)
                     val penalty = calculatePenalty(pair.first)
                     sim - penalty
-                } ?: emptyList()
+                }
 
             for ((childRubric, childVec) in children) {
                 val newCentroidAVector = centroid?.addCopy(childVec) ?: childVec
@@ -273,13 +252,13 @@ class RubricSearchAlgorithmService(
 
                     // Поиск потомков третьего уровня
                     val grandchildren = childRubric.children
-                        ?.mapNotNull { grand -> allRubrics.find { it.first.cipher == grand.cipher } }
-                        ?.filter { pair -> calculatePenalty(pair.first) <= penaltyThreshold }
-                        ?.sortedByDescending { pair ->
+                        .mapNotNull { grand -> allRubrics.find { it.first.cipher == grand.cipher } }
+                        .filter { pair -> calculatePenalty(pair.first) <= penaltyThreshold }
+                        .sortedByDescending { pair ->
                             val sim = pair.second.cosineSimilarity(queryVector)
                             val penalty = calculatePenalty(pair.first)
                             sim - penalty
-                        } ?: emptyList()
+                        }
 
                     for ((grandRubric, grandVec) in grandchildren) {
                         val newCentroidAVector2 = centroid!!.addCopy(grandVec)
@@ -302,11 +281,11 @@ class RubricSearchAlgorithmService(
     }
 
 
-    fun getRelevantTermsForRubrics(
-        rubrics: List<CSCSTIRubricNeo4j>,
+    fun getRelevantTermListForRubrics(
+        rubrics: List<RubricNode>,
         queryVector: Vector
-    ): List<TermEmbeddingNode> {
-        val relevantTerms = mutableListOf<TermEmbeddingNode>()
+    ): List<TermNode> {
+        val relevantTermList = mutableListOf<TermNode>()
 
         for (rubric in rubrics) {
             val terms = rubric.termList ?: continue
@@ -320,10 +299,12 @@ class RubricSearchAlgorithmService(
 
             if (scored.isEmpty()) continue
 
-            val selected = mutableListOf<TermEmbeddingNode>()
+            val selected = mutableListOf<TermNode>()
             var centroid = Vector.of(*scored.first().first.embedding.map { it }.toDoubleArray())
             selected.add(scored.first().first)
 
+            val simImproveThreshold = relevantTermRubricProperties.simImproveThreshold.toDouble()
+            val minSimilarity = relevantTermRubricProperties.minSimilarity.toDouble()
             for ((term, _) in scored.drop(1)) {
                 val candidate = Vector.of(*term.embedding.map { it }.toDoubleArray())
                 val newCentroid = Vector.of(
@@ -333,11 +314,10 @@ class RubricSearchAlgorithmService(
                         .toDoubleArray()
                 )
 
-
                 val simBefore = centroid.cosineSimilarity(queryVector)
                 val simAfter = newCentroid.cosineSimilarity(queryVector)
 
-                if (simAfter >= simBefore) {
+                if (simAfter >= simBefore + simImproveThreshold && simAfter > minSimilarity) {
                     selected.add(term)
                     centroid = newCentroid
                     log.info("Добавлен термин: ${term.content} ($simBefore → $simAfter)")
@@ -347,10 +327,10 @@ class RubricSearchAlgorithmService(
                 }
             }
 
-            relevantTerms.addAll(selected)
+            relevantTermList.addAll(selected)
         }
 
-        return relevantTerms
+        return relevantTermList
     }
 
 

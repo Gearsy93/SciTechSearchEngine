@@ -1,6 +1,7 @@
 package com.gearsy.scitechsearchengine.db.neo4j.repository
 
 import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
+import com.gearsy.scitechsearchengine.db.neo4j.repository.projection.RubricHierarchyProjection
 import org.springframework.data.neo4j.repository.query.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -35,4 +36,14 @@ interface RubricNeo4jRepository {
         RETURN r
     """)
     fun findAllTerminologicalRubrics(): List<RubricNode>
+
+    @Query("""
+    MATCH (r:Rubric)
+    OPTIONAL MATCH (r)-[:HAS_CHILD]->(child:Rubric)
+    RETURN r.cipher AS parentCipher,
+           r.title AS parentTitle,
+           r.embedding AS parentEmbedding,
+           collect(child.cipher) AS childCiphers
+""")
+    fun loadRubricHierarchy(): List<RubricHierarchyProjection>
 }
