@@ -1,7 +1,9 @@
 package com.gearsy.scitechsearchengine.service.query.expansion
 
 import com.gearsy.scitechsearchengine.config.properties.QueryExpansionProperties
+import com.gearsy.scitechsearchengine.model.conveyor.RelevantTerm
 import com.gearsy.scitechsearchengine.model.conveyor.SelectedRubric
+import mikera.vectorz.Vector
 import org.springframework.stereotype.Service
 
 @Service
@@ -15,6 +17,23 @@ class QueryExpansionService(
     // Лог или возврат поисковых запросов
 //    searchQueries.forEachIndexed { idx, queryLocal ->
 //        log.info("Поисковое предписание #${idx + 1}: $queryLocal")
+//    }
+
+    // Подготовка к генерации поисковых предписаний
+//    val selectedRubricsForQuery = result.map { rubricNode ->
+//        val relevant = relevantTerms
+//            .filter { it.content in (rubricNode.termList?.map { t -> t.content } ?: emptyList()) }
+//
+//        SelectedRubric(
+//            cipher = rubricNode.cipher,
+//            title = rubricNode.title,
+//            relevantTerms = relevant.map {
+//                RelevantTerm(
+//                    content = it.content,
+//                    similarity = Vector.of(*it.embedding.toDoubleArray()).cosineSimilarity(queryEmbedding)
+//                )
+//            }
+//        )
 //    }
 
     fun buildSearchQueries(

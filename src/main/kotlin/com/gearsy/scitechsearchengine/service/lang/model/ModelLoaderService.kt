@@ -20,10 +20,14 @@ class ModelLoaderService(private val uSERBgeM3Properties: USERBgeM3Properties,
     lateinit var onnxSession: OrtSession
     lateinit var environment: OrtEnvironment
 
+    private val modelLoadingFlags = listOf(
+        "-get_query_relevant_rubric_term_list",
+        "-run_search_conveyor"
+    )
+
     @PostConstruct
     fun loadModelOnStartup() {
-        if (args.sourceArgs.contains("-getQueryRelevantCSCSTIRubricList")
-            || args.sourceArgs.contains("-run_search_conveyor")) {
+        if (args.sourceArgs.any { it in modelLoadingFlags }) {
             val modelPath = File(uSERBgeM3Properties.onnxPath)
 
             if (!modelPath.exists()) {

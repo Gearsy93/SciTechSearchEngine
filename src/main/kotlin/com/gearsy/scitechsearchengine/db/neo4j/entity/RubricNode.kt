@@ -1,11 +1,14 @@
 package com.gearsy.scitechsearchengine.db.neo4j.entity
 
+import org.springframework.data.neo4j.core.schema.GeneratedValue
 import org.springframework.data.neo4j.core.schema.Id
 import org.springframework.data.neo4j.core.schema.Node
+import java.util.*
 
 @Node("Rubric")
 data class RubricNode(
-    @Id val thesaurusType: ThesaurusType,
+    @Id @GeneratedValue val id: UUID = UUID.randomUUID(),
+    val thesaurusType: ThesaurusType?,
     val sessionId: Long? = null,
     val queryId: Long? = null,
     val cipher: String,
@@ -14,3 +17,4 @@ data class RubricNode(
     val termList: List<TermNode>? = null,
     val children: List<RubricNode> = emptyList()
 )
+

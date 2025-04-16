@@ -65,7 +65,7 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
             }
         }
 
-        val response: List<EmbeddingResponseDTO> = client.post("${serviceAddress}/batch") {
+        val response: List<EmbeddingResponseDTO> = client.post("${serviceAddress}/embedding/batch") {
             contentType(ContentType.Application.Json)
             setBody(requests)
         }.body()
@@ -89,7 +89,7 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
 
         val payload = RubricEmbeddingRequestDTO(title, terms)
 
-        val response: EmbeddingResponseDTO = client.post("${serviceAddress}/rubric") {
+        val response: EmbeddingResponseDTO = client.post("${serviceAddress}/embedding/rubric") {
             contentType(ContentType.Application.Json)
             setBody(payload)
         }.body()

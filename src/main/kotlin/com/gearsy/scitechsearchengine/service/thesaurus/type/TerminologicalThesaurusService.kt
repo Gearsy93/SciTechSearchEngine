@@ -51,20 +51,33 @@ class TerminologicalThesaurusService(
         logger.info("Обработка рубрики: $title ($cipher)")
 
         // Извлекается содержимое ключевых слов, фильтруются дубликаты, максимум 3000 слов
-        val termList = node.get("termList")
-            ?.mapNotNull { it.get("content")?.asText() }
-            ?.distinct()
-            ?.take(embeddingServiceProperties.maxEmbeddingTermCount.toInt())
-            ?: emptyList()
+        val rawTermList = node.get("termList")?.toList() ?: emptyList()
+
+        val termList = rawTermList
+            .mapNotNull { term ->
+                val content = term.get("content")?.asText()
+                val rubricatorId = term.get("rubricatorId")?.asInt()
+                if (content != null) {
+                    mapOf(
+                        "content" to content,
+                        "rubricatorId" to rubricatorId
+                    )
+                } else null
+            }
+            .distinctBy { it["content"] }
+            .take(embeddingServiceProperties.maxEmbeddingTermCount.toInt())
 
         val termEmbeddings = runBlocking { generateTermListEmbeddings(termList, title) }
         val childNodes = node.get("children")?.map { generateRubricTermEmbeddings(it) } ?: emptyList()
 
         val rubricEmbedding = if (childNodes.isEmpty()) {
-            runBlocking {computeSentenceEmbedding(termList, title)}
+            val contents = termList.map { it["content"] as String }
+            runBlocking { computeSentenceEmbedding(contents, title) }
         } else {
-            computeCentroidEmbedding(termList, childNodes, title)
+            val contents = termList.map { it["content"] as String }
+            computeCentroidEmbedding(contents, childNodes, title)
         }
+
 
         updatedNode.put("cipher", cipher)
         updatedNode.put("title", title)
@@ -75,13 +88,17 @@ class TerminologicalThesaurusService(
         return updatedNode
     }
 
-    private suspend fun generateTermListEmbeddings(terms: List<String>, title: String): List<Map<String, Any>> {
+    private suspend fun generateTermListEmbeddings(
+        terms: List<Map<String, Any?>>,
+        title: String
+    ): List<Map<String, Any?>> {
         if (terms.isEmpty()) return emptyList()
 
         val pythonServiceRequests = terms.map { term ->
             EmbeddingRequestDTO(
-                term = term,
-                context = terms.filterNot { it == term },
+                term = term["content"] as String,
+                context = terms.filter { it["content"] != term["content"] }
+                    .mapNotNull { it["content"] as? String },
                 title = title
             )
         }
@@ -95,11 +112,14 @@ class TerminologicalThesaurusService(
 
         return terms.mapIndexed { index, term ->
             mapOf(
-                "content" to term,
-                "embedding" to embeddings[index]
+                "content" to term["content"] as String,
+                "embedding" to embeddings[index],
+                "rubricatorId" to term["rubricatorId"]
             )
         }
     }
+
+
 
     suspend fun computeSentenceEmbedding(termList: List<String>, title: String): FloatArray {
         val sentenceKey = (termList + title).take(embeddingServiceProperties.maxEmbeddingTermCount.toInt()).joinToString(", ")

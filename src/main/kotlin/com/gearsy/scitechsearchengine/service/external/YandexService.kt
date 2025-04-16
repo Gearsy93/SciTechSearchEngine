@@ -20,6 +20,7 @@ import org.w3c.dom.Document
 import org.w3c.dom.NodeList
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URI
 import java.net.URL
 import java.nio.file.Paths
 
@@ -225,8 +226,9 @@ class YandexService(
 
         resultList.forEach { result ->
             try {
-                val fileUrl = URL(result.url)
-                var fileName = result.documentId + "_" + fileUrl.path.substringAfterLast("/")
+                val uri = URI(result.url)
+                val fileURL = uri.toURL()
+                var fileName = result.documentId + "_" + fileURL.path.substringAfterLast("/")
                 val filePath = Paths.get(downloadPath, fileName).toString()
 
                 if (!fileName.contains(".")) {
@@ -235,7 +237,7 @@ class YandexService(
 
                 println("Скачивание файла: ${result.url} -> $filePath")
 
-                URL(result.url).openStream().use { input ->
+                URI(result.url).toURL().openStream().use { input ->
                     FileOutputStream(filePath).use { output ->
                         input.copyTo(output)
                     }

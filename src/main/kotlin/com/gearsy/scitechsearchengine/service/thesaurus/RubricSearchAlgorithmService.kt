@@ -4,30 +4,29 @@ import com.gearsy.scitechsearchengine.config.properties.RelevantTermRubricProper
 import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
 import com.gearsy.scitechsearchengine.db.neo4j.entity.TermNode
 import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
-import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricNeo4jRepository
-import com.gearsy.scitechsearchengine.db.neo4j.repository.TermNeo4jRepository
-import com.gearsy.scitechsearchengine.model.conveyor.RelevantTerm
-import com.gearsy.scitechsearchengine.model.conveyor.SelectedRubric
+import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricHierarchyClientRepository
+import com.gearsy.scitechsearchengine.db.neo4j.repository.TermHierarchyClientRepository
+import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
-import com.gearsy.scitechsearchengine.utils.Neo4jDriverProvider
 import mikera.vectorz.Vector
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
 class RubricSearchAlgorithmService(
-    private val rubricRepository: RubricNeo4jRepository,
-    private val termRepository: TermNeo4jRepository,
+    private val termHierarchyClientRepository: TermHierarchyClientRepository,
+    private val rubricHierarchyClientRepository: RubricHierarchyClientRepository,
     private val embeddingProcessService: EmbeddingService,
     private val relevantTermRubricProperties: RelevantTermRubricProperties
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun getRelevantTermListFromTermThesaurus(query: String): List<RubricNode> {
+    // , query: Query
+    fun getRelevantTermListFromTermThesaurus(queryText: String): List<RubricNode> {
 
-        log.info("Начало обработки запроса: '$query'")
-        val queryEmbedding = generateQueryVector(query)
+        log.info("Начало обработки запроса: '$queryText'")
+        val queryEmbedding = generateQueryVector(queryText)
 
         val allRubrics = loadAllRubricsWithChildren()
 
@@ -45,7 +44,7 @@ class RubricSearchAlgorithmService(
         )
 
         val rubricCiphers = selectedRubrics.map { it.cipher }
-        val termsByRubric = loadTermsForRubrics(rubricCiphers)
+        val termsByRubric = termHierarchyClientRepository.loadTermsForRubrics(rubricCiphers)
 
         // Сбор TermNode в поля selectedRubrics
         val fullRubrics = selectedRubrics.map { embedded ->
@@ -80,24 +79,15 @@ class RubricSearchAlgorithmService(
             )
         }
 
-        log.info("\nФинальное количество релевантных рубрик: ${result.size}\n")
+        log.info("Финальные релевантные рубрики и термины:")
 
-        // Подготовка к генерации поисковых предписаний
-        val selectedRubricsForQuery = result.map { rubricNode ->
-            val relevant = relevantTerms
-                .filter { it.content in (rubricNode.termList?.map { t -> t.content } ?: emptyList()) }
-
-            SelectedRubric(
-                cipher = rubricNode.cipher,
-                title = rubricNode.title,
-                relevantTerms = relevant.map {
-                    RelevantTerm(
-                        content = it.content,
-                        similarity = Vector.of(*it.embedding.toDoubleArray()).cosineSimilarity(queryEmbedding)
-                    )
-                }
-            )
+        result.forEach { rubric ->
+            log.info("${rubric.cipher} — ${rubric.title}")
+            rubric.termList?.forEach { term ->
+                log.info("      ${term.content}")
+            } ?: log.info("      (нет релевантных терминов)")
         }
+
         return result
     }
 
@@ -137,51 +127,8 @@ class RubricSearchAlgorithmService(
     private fun generateQueryVector(query: String): Vector =
         Vector.of(*embeddingProcessService.generateEmbeddings(listOf(query))[0].map { it.toDouble() }.toDoubleArray())
 
-    fun loadTermsForRubrics(rubricCiphers: List<String>): Map<String, List<TermNode>> {
-        return termRepository.loadTermsFromTermThesaurus(rubricCiphers).groupBy(
-            keySelector = { it.getRubricCipher() },
-            valueTransform = {
-                TermNode(
-                    content = it.getContent(),
-                    embedding = it.getEmbedding(),
-                    type = ThesaurusType.TERMINOLOGICAL
-                )
-            }
-        )
-    }
-
     fun loadAllRubricsWithChildren(): List<RubricNode> {
-        val projections = rubricRepository.loadRubricHierarchy()
-
-        val rubricMap = mutableMapOf<String, RubricNode>()
-        val childLinks = mutableMapOf<String, List<String>>()
-
-        for (record in projections) {
-            val cipher = record.getParentCipher()
-            val title = record.getParentTitle()
-            val embedding = record.getParentEmbedding()
-            val childrenCiphers = record.getChildCiphers()
-
-            rubricMap[cipher] = RubricNode(
-                cipher = cipher,
-                title = title,
-                embedding = embedding,
-                termList = null,
-                thesaurusType = ThesaurusType.TERMINOLOGICAL
-            )
-
-            childLinks[cipher] = childrenCiphers
-        }
-
-        for ((parentCipher, childCipherList) in childLinks) {
-            val parent = rubricMap[parentCipher]
-            if (parent != null) {
-                val children = childCipherList.mapNotNull { rubricMap[it] }
-                rubricMap[parentCipher] = parent.copy(children = children)
-            }
-        }
-
-        return rubricMap.values.toList()
+        return rubricHierarchyClientRepository.loadRubricHierarchy()
     }
 
     fun Vector.cosineSimilarity(other: Vector): Double {
@@ -332,6 +279,4 @@ class RubricSearchAlgorithmService(
 
         return relevantTermList
     }
-
-
 }

@@ -41,12 +41,20 @@ class VinitiSearchService(
 
     @PreDestroy
     fun cleanup() {
-        logger.info("Завершение работы драйвера и завершение процессов ChromeDriver")
-        driver.quit()
-        ProcessBuilder("taskkill", "/F", "/IM", "chromedriver.exe", "/T")
-            .inheritIO()
-            .start()
+        if (::driver.isInitialized) {
+            logger.info("Завершение работы драйвера и завершение процессов ChromeDriver")
+            try {
+                driver.quit()
+            } catch (e: Exception) {
+                logger.warn("Ошибка при завершении ChromeDriver: ${e.message}")
+            }
 
+            try {
+                ProcessBuilder("taskkill", "/F", "/IM", "chromedriver.exe", "/T")
+                    .inheritIO()
+                    .start()
+            } catch (_: Exception) { }
+        }
     }
 
     fun makeRequest(input: VinitiServiceInput): List<VinitiDocumentMeta> {
@@ -56,7 +64,7 @@ class VinitiSearchService(
         WebDriverManager.chromedriver().setup()
         driver = ChromeDriver(options)
         wait = WebDriverWait(driver, Duration.ofSeconds(10))
-        jsExecutor = driver as JavascriptExecutor
+        jsExecutor = driver
 
         results.clear()
         logger.info("Начало авторизации")

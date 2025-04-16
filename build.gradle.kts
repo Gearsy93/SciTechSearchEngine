@@ -85,58 +85,25 @@ tasks.withType<JavaExec> {
 	)
 }
 
-tasks.register<JavaExec>("runFillNeo4j") {
+tasks.register<JavaExec>("runGenerateTermThesaurusEmbeddings") {
 	group = "application"
-	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	classpath = sourceSets["main"].runtimeClasspath
-
-	// Читаем свойство 'filename' из Gradle, если оно задано, иначе можно задать значение по умолчанию.
-	val fileName: String = if (project.hasProperty("filename")) {
-		project.property("filename").toString()
-	} else {
-		"defaultFileName" // можно задать значение по умолчанию или вывести ошибку
-	}
-	args = listOf("-fillNeo4j", fileName)
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	args = listOf("-generate_term_thesaurus_embeddings")
 }
 
-tasks.register<JavaExec>("runClearNeo4j") {
+tasks.register<JavaExec>("runImportTermThesaurus") {
 	group = "application"
-	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	classpath = sourceSets["main"].runtimeClasspath
-	args = listOf("-clearNeo4j")
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	args = listOf("-import_term_thesaurus")
 }
 
-tasks.register<JavaExec>("runGenerateCSCSTIThesaurusVectors") {
+tasks.register<JavaExec>("runGetQueryRelevantRubricTermList") {
 	group = "application"
+	classpath = sourceSets["main"].runtimeClasspath
 	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
-	classpath = sourceSets["main"].runtimeClasspath
-
-	val cscstiCipher: String = project.findProperty("cscstiCipher")?.toString() ?: run {
-		return@register
-	}
-
-	args = listOf("-generateCSCSTIThesaurusVectors", cscstiCipher)
-}
-
-tasks.register<JavaExec>("runGetQueryRelevantCSCSTIRubricList") {
-	group = "application"
-	description = "Запускает поиск релевантных рубрик для заданного запроса"
-
-	classpath = sourceSets["main"].runtimeClasspath
-	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt") // Укажи главный класс
-
-	val query: String = project.findProperty("query") as String? ?: run {
-		return@register
-	}
-
-	args = listOf("-getQueryRelevantCSCSTIRubricList", query)
-}
-
-tasks.register<JavaExec>("runMakeSearchApiRequest") {
-	group = "application"
-	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
-	classpath = sourceSets["main"].runtimeClasspath
-	args = listOf("-make_search_api_request")
+	args = listOf("-get_query_relevant_rubric_term_list")
 }
 
 tasks.register<JavaExec>("runMakeECatalogSearchRequest") {
@@ -146,11 +113,16 @@ tasks.register<JavaExec>("runMakeECatalogSearchRequest") {
 	args = listOf("-make_e-catalog_request")
 }
 
+tasks.register<JavaExec>("runMakeYandexSearchApiRequest") {
+	group = "application"
+	classpath = sourceSets["main"].runtimeClasspath
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	args = listOf("-make_yandex_search_api_request")
+}
+
 tasks.register<JavaExec>("runSearchConveyor") {
 	group = "application"
-	description = "Запустить конвейер поиска для тестового запроса"
-
-	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	classpath = sourceSets["main"].runtimeClasspath
-	args = listOf("-run_search_conveyor", "цифровая трансформация производства")
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	args = listOf("-run_search_conveyor")
 }
