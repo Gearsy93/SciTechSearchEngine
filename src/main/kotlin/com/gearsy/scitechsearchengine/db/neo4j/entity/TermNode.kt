@@ -11,7 +11,7 @@ data class TermNode(
     val content: String,
     val embedding: List<Double>,
     val weight: Double? = null,
-    val type: ThesaurusType?,
+    var thesaurusType: ThesaurusType?,
     val sourceType: TermSourceType?,
     val sessionId: Long? = null,
     val queryId: Long? = null

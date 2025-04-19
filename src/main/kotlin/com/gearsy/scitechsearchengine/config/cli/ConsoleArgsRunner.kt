@@ -5,19 +5,20 @@ import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
 import com.gearsy.scitechsearchengine.service.external.YandexService
 import com.gearsy.scitechsearchengine.service.search.SearchConveyorService
-import com.gearsy.scitechsearchengine.service.thesaurus.RubricImportService
-import com.gearsy.scitechsearchengine.service.thesaurus.RubricSearchAlgorithmService
+import com.gearsy.scitechsearchengine.service.thesaurus.terminological.RubricImportFromFileService
+import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
 import com.gearsy.scitechsearchengine.service.thesaurus.type.TerminologicalThesaurusService
 import org.slf4j.LoggerFactory
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
+import kotlin.random.Random.Default.nextLong
 
 @Component
 class ConsoleArgsRunner(
     private val searchConveyorService: SearchConveyorService,
     private val terminologicalThesaurusService: TerminologicalThesaurusService,
     private val rubricSearchAlgorithmService: RubricSearchAlgorithmService,
-    private val rubricImportService: RubricImportService,
+    private val rubricImportFromFileService: RubricImportFromFileService,
     private val yandexAPIInteractionService: YandexService,
     private val vinitiDocSearchService: VinitiSearchService,
     private val vinitiECatalogProperties: VinitiECatalogProperties,
@@ -35,17 +36,17 @@ class ConsoleArgsRunner(
 
             when {
                 arguments.contains("-generate_term_thesaurus_embeddings") -> {
-                    val testCipher = "65"
+                    val testCipher = "20"
                     terminologicalThesaurusService.generateTermThesaurusEmbeddings(testCipher)
                 }
 
                 arguments.contains("-import_term_thesaurus") -> {
                     val testCipher = "65"
-                    rubricImportService.fillTermThesaurus(testCipher)
+                    rubricImportFromFileService.fillTermThesaurus(testCipher)
                 }
 
                 arguments.contains("-get_query_relevant_rubric_term_list") -> {
-                    val query = "базовые принципы информатики"
+                    val query = "Математическая модель пищевого производства"
                     rubricSearchAlgorithmService.getRelevantTermListFromTermThesaurus(query)
                 }
 
@@ -65,7 +66,8 @@ class ConsoleArgsRunner(
 
                 arguments.contains("-run_search_conveyor") -> {
                     val testQuery = "цифровая трансформация производства"
-                    searchConveyorService.performSearchConveyor(testQuery)
+                    val testQueryId = nextLong()
+                    searchConveyorService.performSearchConveyor(testQueryId, testQuery)
                 }
 
                 else -> {

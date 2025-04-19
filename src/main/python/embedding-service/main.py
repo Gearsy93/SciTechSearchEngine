@@ -1,3 +1,4 @@
+import numpy as np
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
@@ -5,6 +6,8 @@ from FlagEmbedding import BGEM3FlagModel
 from numpy.linalg import norm
 import torch
 import os
+
+from starlette.responses import JSONResponse
 
 resources_path = os.path.dirname(os.path.dirname(os.getcwd()))
 safetensors_path = os.path.join(resources_path, "resources", "model", "checkpoint", "safetensors")
@@ -74,3 +77,29 @@ def generate_rubric_embedding(data: dict):
     embedding = normalize_vector(embedding_result["dense_vecs"][0]).tolist()
 
     return {"embedding": embedding}
+
+@app.post("/term/relevance")
+def compute_term_relevance(data: EmbeddingRequest):
+    rubric_data = {
+        "title": data.title,
+        "terms": data.context
+    }
+
+    rubric_embedding = model.encode(
+        [", ".join(rubric_data["terms"] + [rubric_data["title"], rubric_data["title"]])],
+        batch_size=1
+    )["dense_vecs"][0]
+
+    term_input = (
+        f"{data.term} — ключевой термин в предметной области {data.title}. "
+        f"{data.title} — это область, в которой рассматривается контекст: {', '.join(data.context)}. "
+        f"Термин '{data.term}' используется преимущественно в {data.title}."
+    )
+    term_embedding = model.encode([term_input], batch_size=1)["dense_vecs"][0]
+
+    rubric_embedding = normalize_vector(rubric_embedding)
+    term_embedding = normalize_vector(term_embedding)
+
+    similarity = float(np.dot(rubric_embedding, term_embedding))
+
+    return JSONResponse(content={"similarity": similarity})

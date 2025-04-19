@@ -1,12 +1,12 @@
-package com.gearsy.scitechsearchengine.service.thesaurus
+package com.gearsy.scitechsearchengine.service.thesaurus.shared
 
 import com.gearsy.scitechsearchengine.config.properties.RelevantTermRubricProperties
 import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
 import com.gearsy.scitechsearchengine.db.neo4j.entity.TermNode
+import com.gearsy.scitechsearchengine.db.neo4j.entity.TermSourceType
 import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
 import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricHierarchyClientRepository
 import com.gearsy.scitechsearchengine.db.neo4j.repository.TermHierarchyClientRepository
-import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
 import mikera.vectorz.Vector
 import org.slf4j.LoggerFactory
@@ -67,8 +67,10 @@ class RubricSearchAlgorithmService(
         }
 
         // Сбор результатов с терминами
-        val result = selectedRubrics.map { embeddedNode ->
+        val result = selectedRubrics.mapNotNull { embeddedNode ->
             val terms = termsByRubricGroup[embeddedNode.cipher]?.takeIf { it.isNotEmpty() }
+
+            if (terms == null) return@mapNotNull null
 
             RubricNode(
                 cipher = embeddedNode.cipher,
@@ -78,6 +80,7 @@ class RubricSearchAlgorithmService(
                 thesaurusType = ThesaurusType.TERMINOLOGICAL
             )
         }
+
 
         log.info("Финальные релевантные рубрики и термины:")
 

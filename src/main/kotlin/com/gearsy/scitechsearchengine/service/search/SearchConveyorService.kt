@@ -2,12 +2,13 @@ package com.gearsy.scitechsearchengine.service.search
 
 import com.gearsy.scitechsearchengine.controller.dto.search.SearchRequestDTO
 import com.gearsy.scitechsearchengine.controller.dto.search.SearchResultResponseDTO
+import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
 import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.db.postgres.repository.SearchResultRepository
 import com.gearsy.scitechsearchengine.db.postgres.repository.ViewedDocumentRepository
-import com.gearsy.scitechsearchengine.service.thesaurus.RubricSearchAlgorithmService
+import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricDBImportService
+import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
 import com.gearsy.scitechsearchengine.utils.generateMockResults
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -15,16 +16,15 @@ import org.springframework.transaction.annotation.Transactional
 class SearchConveyorService(
     private val relevantRubricTermSearchService: RubricSearchAlgorithmService,
     private val viewedDocumentRepository: ViewedDocumentRepository,
-    private val searchResultRepository: SearchResultRepository
+    private val searchResultRepository: SearchResultRepository,
+    private val rubricDBImportService: RubricDBImportService,
 ) {
-
-    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
     fun handleSearchConveyor(request: SearchRequestDTO, query: Query): List<SearchResultResponseDTO> {
 
         // Выполнение конвейера поиска
-        performSearchConveyor(request.query)
+        performSearchConveyor(query.id, request.query)
 
         // Временные прикольные результаты
         val fakeResults = generateMockResults(query)
@@ -52,15 +52,15 @@ class SearchConveyorService(
         return dtos
     }
 
-    fun performSearchConveyor(query: String) {
+    fun performSearchConveyor(queryId: Long,query: String) {
 
         // Получение релевантных рубрик и терминов терминологического тезауруса
         val rubricTermList = relevantRubricTermSearchService.getRelevantTermListFromTermThesaurus(query)
 
-        // Генерация
+        // Заполнение итерационного тезауруса
+        rubricDBImportService.insertRubricsAndTermsFlat(queryId, rubricTermList, ThesaurusType.ITERATIVE)
 
-        log.info("")
-//        log.info("Performing Conveyor")
+
     }
 
 }
