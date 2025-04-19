@@ -7,5 +7,5 @@ data class VinitiServiceInput(
     val rubricCodes: List<String>,
     val maxPages: Int,
     val queryId: Long,
-    val requestId: Long
+    val sessionId: Long
 )

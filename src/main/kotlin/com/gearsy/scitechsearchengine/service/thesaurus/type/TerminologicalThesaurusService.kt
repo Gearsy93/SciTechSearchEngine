@@ -7,7 +7,10 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.gearsy.scitechsearchengine.config.properties.EmbeddingServiceProperties
 import com.gearsy.scitechsearchengine.controller.dto.embedding.EmbeddingRequestDTO
+import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
+import com.gearsy.scitechsearchengine.model.thesaurus.RubricImportDTO
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
+import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricDBImportService
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -17,15 +20,27 @@ import mikera.vectorz.Vector
 
 @Service
 class TerminologicalThesaurusService(
+    private val rubricDBImportService: RubricDBImportService,
     private val embeddingProcessService: EmbeddingService,
     private val embeddingServiceProperties: EmbeddingServiceProperties
 ) {
+    val mapper = jacksonObjectMapper()
     private val logger = LoggerFactory.getLogger(TerminologicalThesaurusService::class.java)
     private val objectMapper: ObjectMapper = jacksonObjectMapper()
     private val embeddingCache: LinkedHashMap<String, FloatArray> = object : LinkedHashMap<String, FloatArray>(10000, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?): Boolean {
             return size > 10000
         }
+    }
+
+    fun fillTermThesaurus(rubricCipher: String) {
+
+        // Путь к файлу JSON
+        val rubricEmbeddingsPath = "src/main/resources/rubricator/embedding/$rubricCipher.json"
+        val rootRubric: RubricImportDTO = mapper.readValue(File(rubricEmbeddingsPath))
+
+        // Открываем сессию и заполняем базу
+        rubricDBImportService.insertRubricsAndTermsHierarchy(rootRubric, ThesaurusType.TERMINOLOGICAL)
     }
 
     fun generateTermThesaurusEmbeddings(rubricatorCipher: String) {
@@ -67,7 +82,7 @@ class TerminologicalThesaurusService(
             .distinctBy { it["content"] }
             .take(embeddingServiceProperties.maxEmbeddingTermCount.toInt())
 
-        val termEmbeddings = runBlocking { generateTermListEmbeddings(termList, title) }
+        val termEmbeddings = runBlocking { embeddingProcessService.generateTermListEmbeddings(termList, title) }
         val childNodes = node.get("children")?.map { generateRubricTermEmbeddings(it) } ?: emptyList()
 
         val rubricEmbedding = if (childNodes.isEmpty()) {
@@ -87,39 +102,6 @@ class TerminologicalThesaurusService(
 
         return updatedNode
     }
-
-    private suspend fun generateTermListEmbeddings(
-        terms: List<Map<String, Any?>>,
-        title: String
-    ): List<Map<String, Any?>> {
-        if (terms.isEmpty()) return emptyList()
-
-        val pythonServiceRequests = terms.map { term ->
-            EmbeddingRequestDTO(
-                term = term["content"] as String,
-                context = terms.filter { it["content"] != term["content"] }
-                    .mapNotNull { it["content"] as? String },
-                title = title
-            )
-        }
-
-        val chunked = pythonServiceRequests.chunked(128)
-        val embeddings = mutableListOf<List<Float>>()
-
-        for (chunk in chunked) {
-            embeddings += embeddingProcessService.requestBatchEmbeddings(chunk)
-        }
-
-        return terms.mapIndexed { index, term ->
-            mapOf(
-                "content" to term["content"] as String,
-                "embedding" to embeddings[index],
-                "rubricatorId" to term["rubricatorId"]
-            )
-        }
-    }
-
-
 
     suspend fun computeSentenceEmbedding(termList: List<String>, title: String): FloatArray {
         val sentenceKey = (termList + title).take(embeddingServiceProperties.maxEmbeddingTermCount.toInt()).joinToString(", ")

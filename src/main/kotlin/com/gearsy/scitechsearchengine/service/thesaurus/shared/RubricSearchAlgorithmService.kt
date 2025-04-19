@@ -3,10 +3,9 @@ package com.gearsy.scitechsearchengine.service.thesaurus.shared
 import com.gearsy.scitechsearchengine.config.properties.RelevantTermRubricProperties
 import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
 import com.gearsy.scitechsearchengine.db.neo4j.entity.TermNode
-import com.gearsy.scitechsearchengine.db.neo4j.entity.TermSourceType
 import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
-import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricHierarchyClientRepository
-import com.gearsy.scitechsearchengine.db.neo4j.repository.TermHierarchyClientRepository
+import com.gearsy.scitechsearchengine.db.neo4j.repository.RubricClientRepository
+import com.gearsy.scitechsearchengine.db.neo4j.repository.TermClientRepository
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
 import mikera.vectorz.Vector
 import org.slf4j.LoggerFactory
@@ -14,15 +13,14 @@ import org.springframework.stereotype.Service
 
 @Service
 class RubricSearchAlgorithmService(
-    private val termHierarchyClientRepository: TermHierarchyClientRepository,
-    private val rubricHierarchyClientRepository: RubricHierarchyClientRepository,
+    private val termClientRepository: TermClientRepository,
+    private val rubricClientRepository: RubricClientRepository,
     private val embeddingProcessService: EmbeddingService,
     private val relevantTermRubricProperties: RelevantTermRubricProperties
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    // , query: Query
     fun getRelevantTermListFromTermThesaurus(queryText: String): List<RubricNode> {
 
         log.info("Начало обработки запроса: '$queryText'")
@@ -44,7 +42,7 @@ class RubricSearchAlgorithmService(
         )
 
         val rubricCiphers = selectedRubrics.map { it.cipher }
-        val termsByRubric = termHierarchyClientRepository.loadTermsForRubrics(rubricCiphers)
+        val termsByRubric = termClientRepository.loadTermsForRubrics(rubricCiphers)
 
         // Сбор TermNode в поля selectedRubrics
         val fullRubrics = selectedRubrics.map { embedded ->
@@ -80,10 +78,7 @@ class RubricSearchAlgorithmService(
                 thesaurusType = ThesaurusType.TERMINOLOGICAL
             )
         }
-
-
         log.info("Финальные релевантные рубрики и термины:")
-
         result.forEach { rubric ->
             log.info("${rubric.cipher} — ${rubric.title}")
             rubric.termList?.forEach { term ->
@@ -127,11 +122,11 @@ class RubricSearchAlgorithmService(
         return levelPenalty + titlePenalty + hardcodedPenalty
     }
 
-    private fun generateQueryVector(query: String): Vector =
+    fun generateQueryVector(query: String): Vector =
         Vector.of(*embeddingProcessService.generateEmbeddings(listOf(query))[0].map { it.toDouble() }.toDoubleArray())
 
     fun loadAllRubricsWithChildren(): List<RubricNode> {
-        return rubricHierarchyClientRepository.loadRubricHierarchy()
+        return rubricClientRepository.loadRubricHierarchy()
     }
 
     fun Vector.cosineSimilarity(other: Vector): Double {
@@ -164,8 +159,6 @@ class RubricSearchAlgorithmService(
                 break
             }
         }
-
-
         return selected to (centroid ?: Vector.of(*DoubleArray(queryVector.length())))
     }
 
@@ -230,7 +223,6 @@ class RubricSearchAlgorithmService(
         return selected
     }
 
-
     fun getRelevantTermListForRubrics(
         rubrics: List<RubricNode>,
         queryVector: Vector
@@ -242,9 +234,10 @@ class RubricSearchAlgorithmService(
             if (terms.isEmpty()) continue
 
             val scored = terms.map { term ->
-                term to Vector.of(*term.embedding.map { it }.toDoubleArray())
-            }.map { (term, vector) ->
-                term to vector.cosineSimilarity(queryVector)
+                val vector = Vector.of(*term.embedding.map { it }.toDoubleArray())
+                val score = vector.cosineSimilarity(queryVector)
+                term.score = score
+                term to score
             }.sortedByDescending { it.second }
 
             if (scored.isEmpty()) continue

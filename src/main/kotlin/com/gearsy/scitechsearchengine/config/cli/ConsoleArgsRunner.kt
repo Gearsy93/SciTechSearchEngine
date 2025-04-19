@@ -5,7 +5,6 @@ import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
 import com.gearsy.scitechsearchengine.service.external.YandexService
 import com.gearsy.scitechsearchengine.service.search.SearchConveyorService
-import com.gearsy.scitechsearchengine.service.thesaurus.terminological.RubricImportFromFileService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
 import com.gearsy.scitechsearchengine.service.thesaurus.type.TerminologicalThesaurusService
 import org.slf4j.LoggerFactory
@@ -18,7 +17,6 @@ class ConsoleArgsRunner(
     private val searchConveyorService: SearchConveyorService,
     private val terminologicalThesaurusService: TerminologicalThesaurusService,
     private val rubricSearchAlgorithmService: RubricSearchAlgorithmService,
-    private val rubricImportFromFileService: RubricImportFromFileService,
     private val yandexAPIInteractionService: YandexService,
     private val vinitiDocSearchService: VinitiSearchService,
     private val vinitiECatalogProperties: VinitiECatalogProperties,
@@ -42,7 +40,7 @@ class ConsoleArgsRunner(
 
                 arguments.contains("-import_term_thesaurus") -> {
                     val testCipher = "65"
-                    rubricImportFromFileService.fillTermThesaurus(testCipher)
+                    terminologicalThesaurusService.fillTermThesaurus(testCipher)
                 }
 
                 arguments.contains("-get_query_relevant_rubric_term_list") -> {
@@ -52,12 +50,12 @@ class ConsoleArgsRunner(
 
                 arguments.contains("-make_e-catalog_request") -> {
                     val testInput = VinitiServiceInput(
-                        rubricCodes = listOf("20.23.25", "27.17.25"),
+                        rubricCodes = listOf("27.45"),
                         maxPages = vinitiECatalogProperties.maxPages.toInt(),
                         queryId = 1,
-                        requestId = 1
+                        sessionId = 1
                     )
-                    vinitiDocSearchService.makeRequest(testInput)
+                    vinitiDocSearchService.getActualRubricListTerm(testInput)
                 }
 
                 arguments.contains("-make_yandex_search_api_request") -> {
@@ -65,9 +63,10 @@ class ConsoleArgsRunner(
                 }
 
                 arguments.contains("-run_search_conveyor") -> {
-                    val testQuery = "цифровая трансформация производства"
-                    val testQueryId = nextLong()
-                    searchConveyorService.performSearchConveyor(testQueryId, testQuery)
+                    val testQueryText = "Применение графов в логистике и транспортных сетях"
+                    val testQueryId = nextLong(0, Long.MAX_VALUE)
+                    val testSessionId = 52L
+                    searchConveyorService.performSearchConveyor(testQueryId, testSessionId, testQueryText)
                 }
 
                 else -> {

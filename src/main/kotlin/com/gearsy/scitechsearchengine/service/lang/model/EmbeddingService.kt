@@ -30,8 +30,48 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
 
     val serviceAddress = "http://${embeddingServiceProperties.host}:${embeddingServiceProperties.port}"
 
-    suspend fun requestPythonEmbedding(term: String, context: List<String>, title: String): List<Float> {
+    suspend fun generateTermListEmbeddings(
+        terms: List<Map<String, Any?>>,
+        title: String
+    ): List<Map<String, Any?>> {
+        if (terms.isEmpty()) return emptyList()
+
+        val pythonServiceRequests = terms.map { term ->
+            EmbeddingRequestDTO(
+                term = term["content"] as String,
+                context = terms.filter { it["content"] != term["content"] }
+                    .mapNotNull { it["content"] as? String },
+                title = title
+            )
+        }
+
+        val chunked = pythonServiceRequests.chunked(128)
+        val embeddings = mutableListOf<List<Float>>()
+
+        for (chunk in chunked) {
+            embeddings += requestBatchEmbeddings(chunk)
+        }
+
+        return terms.mapIndexed { index, term ->
+            mapOf(
+                "content" to term["content"] as String,
+                "embedding" to embeddings[index],
+                "rubricatorId" to term["rubricatorId"]
+            )
+        }
+    }
+
+    suspend fun generateEmbeddingsWithExternalContext(
+        terms: List<Map<String, Any>>,
+        rubricTitle: String,
+        contextTerms: List<String>
+    ): List<EmbeddingResponseDTO> {
         val client = HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 180_000
+                connectTimeoutMillis = 30_000
+                socketTimeoutMillis = 120_000
+            }
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
@@ -40,14 +80,24 @@ class EmbeddingService(private val modelLoader: ModelLoaderService,
             }
         }
 
-        val response: EmbeddingResponseDTO = client.post("${serviceAddress}/embedding") {
+        val payload: List<EmbeddingRequestDTO> = terms.map { term ->
+            EmbeddingRequestDTO(
+                term = term["content"] as String,
+                context = contextTerms,
+                title = rubricTitle
+            )
+        }
+
+        val response: List<EmbeddingResponseDTO> = client.post("${serviceAddress}/embedding/batch") {
             contentType(ContentType.Application.Json)
-            setBody(EmbeddingRequestDTO(term, context, title))
+            setBody(payload)
         }.body()
 
         client.close()
-        return response.embedding
+        return response
     }
+
+
 
     suspend fun requestBatchEmbeddings(requests: List<EmbeddingRequestDTO>): List<List<Float>> {
         println("Request count: ${requests.size}")

@@ -4,5 +4,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class EmbeddingResponseDTO(
-    val embedding: List<Float>
+    val embedding: List<Float>,
+    val term: String
 )

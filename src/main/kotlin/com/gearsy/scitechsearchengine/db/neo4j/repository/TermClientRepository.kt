@@ -1,5 +1,6 @@
 package com.gearsy.scitechsearchengine.db.neo4j.repository
 
+import com.gearsy.scitechsearchengine.db.neo4j.entity.CipherContentPair
 import com.gearsy.scitechsearchengine.db.neo4j.entity.TermNode
 import com.gearsy.scitechsearchengine.db.neo4j.entity.TermSourceType
 import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
@@ -8,9 +9,26 @@ import org.springframework.stereotype.Repository
 
 
 @Repository
-class TermHierarchyClientRepository(
+class TermClientRepository(
     private val neo4jClient: Neo4jClient
 ) {
+
+    fun findAllTermsGroupedByRubric(ciphers: Collection<String>): List<CipherContentPair> {
+        val query =
+        "MATCH (t:Term)-[:BELONGS_TO]->(r:Rubric) " +
+        "WHERE r.cipher IN \$ciphers AND t.thesaurusType = 'TERMINOLOGICAL' " +
+        "RETURN r.cipher AS cipher, t.content AS content"
+
+        return neo4jClient.query(query)
+            .bind(ciphers).to("ciphers")
+            .fetch()
+            .all()
+            .map {
+                val cipher = it["cipher"]?.toString() ?: ""
+                val content = it["content"]?.toString() ?: ""
+                CipherContentPair(cipher, content)
+            }
+    }
 
     fun loadTermsForRubrics(rubricCiphers: List<String>): Map<String, List<TermNode>> {
         val query =

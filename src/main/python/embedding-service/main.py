@@ -58,7 +58,13 @@ def generate_embeddings(data: List[EmbeddingRequest]):
 
     torch.cuda.empty_cache()
 
-    return [{"embedding": normalize_vector(vec).tolist()} for vec in vectors]
+    return [
+        {
+            "embedding": normalize_vector(vec).tolist(),
+            "term": d.term
+        }
+        for vec, d in zip(vectors, data)
+    ]
 
 @app.post("/embedding/rubric")
 def generate_rubric_embedding(data: dict):

@@ -6,7 +6,7 @@ import org.springframework.data.neo4j.core.Neo4jClient
 import org.springframework.stereotype.Repository
 
 @Repository
-class RubricHierarchyClientRepository(
+class RubricClientRepository(
     private val neo4jClient: Neo4jClient
 ) {
 
@@ -56,5 +56,23 @@ class RubricHierarchyClientRepository(
         }
 
         return rubricMap.values.toList()
+    }
+
+    fun getRubricTitles(ciphers: Collection<String>): List<Map<String, String>> {
+        val query =
+            "MATCH (r:Rubric) " +
+                    "WHERE r.cipher IN \$ciphers " +
+                    "RETURN r.cipher AS cipher, r.title AS title"
+
+        return neo4jClient.query(query)
+            .bind(ciphers).to("ciphers")
+            .fetch()
+            .all()
+            .map {
+                mapOf(
+                    "cipher" to (it["cipher"]?.toString() ?: ""),
+                    "title" to (it["title"]?.toString() ?: "")
+                )
+            }
     }
 }

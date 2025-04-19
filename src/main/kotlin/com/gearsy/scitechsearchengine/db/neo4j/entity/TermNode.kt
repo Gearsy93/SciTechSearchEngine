@@ -10,7 +10,7 @@ data class TermNode(
     @Id @GeneratedValue val id: UUID = UUID.randomUUID(),
     val content: String,
     val embedding: List<Double>,
-    val weight: Double? = null,
+    var score: Double? = null,
     var thesaurusType: ThesaurusType?,
     val sourceType: TermSourceType?,
     val sessionId: Long? = null,

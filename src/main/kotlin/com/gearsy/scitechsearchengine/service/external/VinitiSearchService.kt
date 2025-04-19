@@ -11,6 +11,7 @@ import org.openqa.selenium.chrome.ChromeOptions
 import org.openqa.selenium.By
 import org.openqa.selenium.JavascriptExecutor
 import org.openqa.selenium.Keys
+import org.openqa.selenium.WebElement
 import org.openqa.selenium.support.ui.WebDriverWait
 import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.Select
@@ -57,13 +58,15 @@ class VinitiSearchService(
         }
     }
 
-    fun makeRequest(input: VinitiServiceInput): List<VinitiDocumentMeta> {
+    fun getActualRubricListTerm(input: VinitiServiceInput): List<VinitiDocumentMeta> {
         logger.info("Настройка ChromeDriver и запуск браузера")
         val options = ChromeOptions()
-         options.addArguments("--headless")
+        options.addArguments("--headless")
+        options.addArguments("--window-size=1920,1080")
+
         WebDriverManager.chromedriver().setup()
         driver = ChromeDriver(options)
-        wait = WebDriverWait(driver, Duration.ofSeconds(10))
+        wait = WebDriverWait(driver, Duration.ofSeconds(5))
         jsExecutor = driver
 
         results.clear()
@@ -75,7 +78,10 @@ class VinitiSearchService(
             logger.info("Обработка шифра рубрики: $code")
             processSearchParams(code)
             logger.info("Параметры поиска установлены для шифра: $code")
-            processCategoryChoice()
+            val choiceResult = processCategoryChoice()
+            if (!choiceResult) {
+                continue
+            }
             logger.info("Выбор категории 'Статья' выполнен")
             processPagesData(input)
             logger.info("Обработка результатов поиска для шифра $code завершена")
@@ -87,6 +93,7 @@ class VinitiSearchService(
 
     fun processAuth() {
         driver.get(startPageUrl)
+        logger.info("Загружена страница: " + driver.title)
         wait.until { jsExecutor.executeScript("return document.readyState") == "complete" }
         val loginField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("ctl00_UserLogin")))
         loginField.sendKeys(username)
@@ -99,8 +106,9 @@ class VinitiSearchService(
         driver.get(startPageUrl)
         wait.until { jsExecutor.executeScript("return document.readyState") == "complete" }
         logger.info("Установка параметров поиска для шифра: $rubricCode")
-        val radioButton = wait.until(ExpectedConditions.elementToBeClickable(By.id("ctl00_ContentPlaceHolder1_RBList_1_1")))
-        radioButton.click()
+        val radioButton = waitForElementVisibleById("ctl00_ContentPlaceHolder1_RBList_1_1")
+        jsExecutor.executeScript("arguments[0].click();", radioButton)
+
         val cscstiCheckbox = wait.until(ExpectedConditions.elementToBeClickable(By.id("ctl00_ContentPlaceHolder1_CBList_1_3")))
         cscstiCheckbox.click()
         val searchInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("ctl00_ContentPlaceHolder1_TBSearch_1")))
@@ -119,7 +127,23 @@ class VinitiSearchService(
         searchInput.sendKeys(Keys.RETURN)
     }
 
-    fun processCategoryChoice() {
+    fun processCategoryChoice(): Boolean {
+        // Проверка на отсутствие результатов
+        try {
+            val statText = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(By.id("ctl00_ContentPlaceHolder1_Statistics"))
+            ).text
+            if (Regex("""[-–]\s*0\s+объект""").containsMatchIn(statText)) {
+                logger.warn("Рубрика не содержит результатов — поиск прерван")
+                driver.switchTo().defaultContent()
+                return false
+            }
+
+        } catch (e: Exception) {
+            logger.warn("Не удалось определить наличие результатов: ${e.message}")
+            throw e
+        }
+
         try {
             val iframe = wait.until(
                 ExpectedConditions.presenceOfElementLocated(By.id("ctl00_ContentPlaceHolder1_data_frame"))
@@ -128,6 +152,7 @@ class VinitiSearchService(
             logger.info("Переключились в iframe для выбора категории")
         } catch (e: Exception) {
             logger.warn("Iframe не найден или не доступен: ${e.message}")
+            throw e
         }
 
         try {
@@ -140,9 +165,11 @@ class VinitiSearchService(
             logger.info("Переход по ссылке с категорией 'Статьи'")
         } catch (e: Exception) {
             logger.warn("Не удалось найти ссылку с категорией 'Статьи': ${e.message}")
+            throw e
         }
 
         driver.switchTo().defaultContent()
+        return true
     }
 
     fun processPagesData(input: VinitiServiceInput) {
@@ -212,6 +239,18 @@ class VinitiSearchService(
         driver.switchTo().defaultContent()
     }
 
+    fun waitForElementVisibleById(id: String, timeout: Long = 10): WebElement {
+        return WebDriverWait(driver, Duration.ofSeconds(timeout)).until {
+            try {
+                val el = driver.findElement(By.id(id))
+                el.isDisplayed && el.isEnabled
+            } catch (e: Exception) {
+                false
+            }
+        }.let { driver.findElement(By.id(id)) }
+    }
+
+
     fun extractPublicationMetadata(link: String, input: VinitiServiceInput, documentId: String?): VinitiDocumentMeta? {
         logger.info("Начало обработки страницы публикации: $link")
         val originalWindow = driver.windowHandle
@@ -257,7 +296,7 @@ class VinitiSearchService(
                         "Шифр ГРНТИ" -> rubrics.add(valueTd.text.trim())
                         "Ключевые слова" -> {
                             val raw = valueTd.text.trim()
-                            val list = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            val list = raw.split(Regex("[,;]")).map { it.trim() }.filter { it.isNotEmpty() }
                             keywordBlocks.add(list)
                         }
                     }
