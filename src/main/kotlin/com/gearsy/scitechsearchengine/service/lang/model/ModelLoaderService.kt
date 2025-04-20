@@ -27,7 +27,7 @@ class ModelLoaderService(private val uSERBgeM3Properties: USERBgeM3Properties,
 
     @PostConstruct
     fun loadModelOnStartup() {
-        if (args.sourceArgs.any { it in modelLoadingFlags }) {
+        if (args.sourceArgs.any { it in modelLoadingFlags } || args.sourceArgs.size == 0) {
             val modelPath = File(uSERBgeM3Properties.onnxPath)
 
             if (!modelPath.exists()) {

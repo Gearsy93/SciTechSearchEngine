@@ -1,20 +1,31 @@
 package com.gearsy.scitechsearchengine.config.cli
 
 import com.gearsy.scitechsearchengine.config.properties.VinitiECatalogProperties
+import com.gearsy.scitechsearchengine.controller.QueryController
+import com.gearsy.scitechsearchengine.controller.dto.query.CreateQueryRequest
+import com.gearsy.scitechsearchengine.db.postgres.entity.Query
+import com.gearsy.scitechsearchengine.db.postgres.entity.Session
+import com.gearsy.scitechsearchengine.db.postgres.repository.QueryRepository
+import com.gearsy.scitechsearchengine.db.postgres.repository.SessionRepository
 import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
 import com.gearsy.scitechsearchengine.service.external.YandexService
+import com.gearsy.scitechsearchengine.service.query.QueryService
 import com.gearsy.scitechsearchengine.service.search.SearchConveyorService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
 import com.gearsy.scitechsearchengine.service.thesaurus.type.TerminologicalThesaurusService
+import jakarta.persistence.EntityManager
 import org.slf4j.LoggerFactory
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
-import kotlin.random.Random.Default.nextLong
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
+import java.time.LocalDateTime
 
 @Component
 class ConsoleArgsRunner(
-    private val searchConveyorService: SearchConveyorService,
+//    private val queryService: QueryService,
+    private val queryController: QueryController,
     private val terminologicalThesaurusService: TerminologicalThesaurusService,
     private val rubricSearchAlgorithmService: RubricSearchAlgorithmService,
     private val yandexAPIInteractionService: YandexService,
@@ -64,9 +75,8 @@ class ConsoleArgsRunner(
 
                 arguments.contains("-run_search_conveyor") -> {
                     val testQueryText = "Применение графов в логистике и транспортных сетях"
-                    val testQueryId = nextLong(0, Long.MAX_VALUE)
-                    val testSessionId = 52L
-                    searchConveyorService.performSearchConveyor(testQueryId, testSessionId, testQueryText)
+                    val sessionId = 72L
+                    // searchConveyorService.performSearchConveyor(testQuery, sessionId, testQueryText)
                 }
 
                 else -> {

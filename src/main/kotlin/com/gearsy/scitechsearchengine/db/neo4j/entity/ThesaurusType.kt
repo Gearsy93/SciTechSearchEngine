@@ -1,3 +1,3 @@
 package com.gearsy.scitechsearchengine.db.neo4j.entity
 
-enum class ThesaurusType { TERMINOLOGICAL, ITERATIVE, CONTEXTUAL, EXTENDED_ITERATIVE }
+enum class ThesaurusType { TERMINOLOGICAL, ITERATIVE, EXTENDED_ITERATIVE }

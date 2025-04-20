@@ -56,7 +56,7 @@ class QueryController(
         return ResponseEntity.ok(QueryDTO(query.id, query.queryText))
     }
 
-    @PostMapping("/create")
+    @PostMapping("/new")
     fun createQuery(@RequestBody request: CreateQueryRequest): ResponseEntity<CreateQueryResponse> {
         val query = queryService.createQuery(request)
         return ResponseEntity.ok(CreateQueryResponse(query.id, query.session.id, query.queryText))

@@ -1,6 +1,6 @@
-package com.gearsy.scitechsearchengine.model.conveyor
+package com.gearsy.scitechsearchengine.model.yandex
 
-data class SelectedRubric(
+data class RelevantRubric(
     val cipher: String,
     val title: String,
     val relevantTerms: List<RelevantTerm>

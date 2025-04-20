@@ -82,7 +82,10 @@ def generate_rubric_embedding(data: dict):
     embedding_result = model.encode([sentence], batch_size=1)
     embedding = normalize_vector(embedding_result["dense_vecs"][0]).tolist()
 
-    return {"embedding": embedding}
+    return {
+        "embedding": embedding,
+        "term": title
+    }
 
 @app.post("/term/relevance")
 def compute_term_relevance(data: EmbeddingRequest):

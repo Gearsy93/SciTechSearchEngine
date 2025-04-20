@@ -9,9 +9,12 @@ import com.gearsy.scitechsearchengine.db.postgres.repository.SearchResultReposit
 import com.gearsy.scitechsearchengine.db.postgres.repository.ViewedDocumentRepository
 import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
+import com.gearsy.scitechsearchengine.service.query.expansion.QueryExpansionService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricDBImportService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
+import com.gearsy.scitechsearchengine.service.thesaurus.type.ContextualThesaurusService
 import com.gearsy.scitechsearchengine.service.thesaurus.type.ExtendedIterativeThesaurusService
+import com.gearsy.scitechsearchengine.service.viniti.document.VinitiDocumentService
 import com.gearsy.scitechsearchengine.utils.generateMockResults
 import com.gearsy.scitechsearchengine.utils.getVinitiCatalogMock
 import org.springframework.stereotype.Service
@@ -25,14 +28,17 @@ class SearchConveyorService(
     private val rubricDBImportService: RubricDBImportService,
     private val vinitiDocSearchService: VinitiSearchService,
     private val vinitiECatalogProperties: VinitiECatalogProperties,
-    private val extendedIterativeThesaurusService: ExtendedIterativeThesaurusService
+    private val extendedIterativeThesaurusService: ExtendedIterativeThesaurusService,
+    private val queryExpansionService: QueryExpansionService,
+    private val contextualThesaurusService: ContextualThesaurusService,
+    private val vinitiDocumentService: VinitiDocumentService,
 ) {
 
     @Transactional
     fun handleSearchConveyor(request: SearchRequestDTO, query: Query): List<SearchResultResponseDTO> {
 
         // Выполнение конвейера поиска
-        performSearchConveyor(query.id, request.sessionId, request.query)
+        performSearchConveyor(query, request.sessionId, request.query)
 
         // Временные прикольные результаты
         val fakeResults = generateMockResults(query)
@@ -60,25 +66,37 @@ class SearchConveyorService(
         return searchResultResponseDTOList
     }
 
-    fun performSearchConveyor(queryId: Long, sessionId: Long, queryText: String) {
+    fun performSearchConveyor(query: Query, sessionId: Long, queryText: String) {
 
         // Получение релевантных рубрик и терминов терминологического тезауруса
-        val rubricTermList = relevantRubricTermSearchService.getRelevantTermListFromTermThesaurus(queryText)
+        val iterativeRubricTermList = relevantRubricTermSearchService.getRelevantTermListFromTermThesaurus(queryText)
 
         // Заполнение итерационного тезауруса
-        rubricDBImportService.insertRubricsAndTermsFlat(queryId, sessionId, ThesaurusType.ITERATIVE, rubricTermList)
+        rubricDBImportService.insertRubricsAndTermsFlat(query.id, sessionId, ThesaurusType.ITERATIVE, iterativeRubricTermList)
 
         // Получение результатов структурированного поиска
         val vinitiSearchInput = VinitiServiceInput(
-            rubricCodes = rubricTermList.map { it.cipher },
+            rubricCodes = iterativeRubricTermList.map { it.cipher },
             maxPages = vinitiECatalogProperties.maxPages.toInt(),
-            queryId = queryId,
+            queryId = query.id,
             sessionId = sessionId
         )
 //        val vinitiSearchResults = vinitiDocSearchService.getActualRubricListTerm(vinitiSearchInput)
         val vinitiSearchResults = getVinitiCatalogMock()
 
-        // Заполнение расширенного итерационного тезауруса, сохранение структурированных данных в реляционную БД
-        extendedIterativeThesaurusService.insertStructuredRubricAndTerms(queryId, sessionId, queryText, ThesaurusType.EXTENDED_ITERATIVE, vinitiSearchResults)
+        // Заполнение расширенного итерационного тезауруса,
+        val extendedRubricTermList = extendedIterativeThesaurusService.insertStructuredRubricAndTerms(query.id, sessionId, queryText, ThesaurusType.EXTENDED_ITERATIVE, vinitiSearchResults)
+
+        // Сохранение структурированных данных в реляционную БД
+//        vinitiDocumentService.saveVinitiResults(query, vinitiSearchResults)
+
+        // Сохранение данных итерационных тезаурусов в контекстный
+        contextualThesaurusService.updateSessionTerms(query, sessionId, iterativeRubricTermList, extendedRubricTermList)
+
+        val evaluatedScoreTermList = queryExpansionService.evaluateTermListFinalScore(sessionId, iterativeRubricTermList, extendedRubricTermList)
+
+
+        // Подготовка поисковых предписаний
+//        queryExpansionService
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository
 interface SessionRepository : JpaRepository<Session, Long> {
 
     fun findSessionsById(id: Long): MutableList<Session>
+    fun findSessionById(id: Long): Session
 
     @Query("""
         SELECT new com.gearsy.scitechsearchengine.controller.dto.session.SessionWithTitleDTO(

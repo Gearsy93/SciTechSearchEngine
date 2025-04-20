@@ -36,7 +36,7 @@ class ExtendedIterativeThesaurusService(
         queryText: String,
         thesaurusType: ThesaurusType,
         vinitiSearchResults: List<VinitiDocumentMeta>
-    ) {
+    ): List<RubricNode> {
         // Группировка терминов из VINITI по шифру рубрики
         val groupedTerms: Map<String, Set<String>> = vinitiSearchResults
             .flatMap { it.rubricTermDataList }
@@ -139,7 +139,7 @@ class ExtendedIterativeThesaurusService(
                     "cipher" to cipher,
                     "title" to title,
                     "parentCipher" to null,
-                    "embedding" to List(384) { 0.0 },
+                    "embedding" to List(1024) { 0.0 },
                     "thesaurusType" to ThesaurusType.EXTENDED_ITERATIVE.toString(),
                     "sessionId" to sessionId,
                     "queryId" to queryId
@@ -147,9 +147,48 @@ class ExtendedIterativeThesaurusService(
             }
         }
         rubricRepository.createRubricHierarchy(extendedRubrics)
-
         termRepository.createTermLinks(termsToInsert)
         logger.info("Вставлено ${termsToInsert.size} терминов в расширенный тезаурус")
+
+        return buildRubricNodeList(extendedRubrics, termsToInsert)
+    }
+
+    fun buildRubricNodeList(
+        extendedRubrics: List<Map<String, Any?>>,
+        termsToInsert: List<Map<String, Any?>>
+    ): List<RubricNode> {
+        return extendedRubrics.map { rubric ->
+            val cipher = rubric["cipher"] as String
+            val title = rubric["title"] as String
+            val embedding = (rubric["embedding"] as List<*>).map { (it as Number).toDouble() }
+            val thesaurusType = rubric["thesaurusType"]?.let { ThesaurusType.valueOf(it as String) }
+            val sessionId = rubric["sessionId"] as? Long
+            val queryId = rubric["queryId"] as? Long
+
+            val termsForRubric = termsToInsert
+                .filter { it["cipher"] == cipher }
+                .map { termMap ->
+                    TermNode(
+                        content = termMap["content"] as String,
+                        embedding = (termMap["embedding"] as List<*>).map { (it as Number).toDouble() },
+                        score = (termMap["score"] as? Number)?.toDouble(),
+                        thesaurusType = termMap["thesaurusType"]?.let { ThesaurusType.valueOf(it as String) },
+                        sourceType = termMap["sourceType"]?.let { TermSourceType.valueOf(it as String) },
+                        sessionId = termMap["sessionId"] as? Long,
+                        queryId = termMap["queryId"] as? Long
+                    )
+                }
+
+            RubricNode(
+                cipher = cipher,
+                title = title,
+                embedding = embedding,
+                termList = termsForRubric,
+                thesaurusType = thesaurusType,
+                sessionId = sessionId,
+                queryId = queryId
+            )
+        }
     }
 
     fun getRelevantTermsByRubricMap(
@@ -169,6 +208,4 @@ class ExtendedIterativeThesaurusService(
 
         return relevantRubricTermSearchService.getRelevantTermListForRubrics(pseudoRubrics, queryVector)
     }
-
-
 }

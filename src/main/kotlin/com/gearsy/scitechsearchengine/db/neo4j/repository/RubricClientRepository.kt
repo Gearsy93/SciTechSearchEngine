@@ -14,6 +14,7 @@ class RubricClientRepository(
         val result = neo4jClient.query(
             """
             MATCH (r:Rubric)
+            WHERE r.thesaurusType = 'TERMINOLOGICAL'
             OPTIONAL MATCH (r)-[:HAS_CHILD]->(child:Rubric)
             RETURN r.cipher AS cipher,
                    r.title AS title,
@@ -62,6 +63,7 @@ class RubricClientRepository(
         val query =
             "MATCH (r:Rubric) " +
                     "WHERE r.cipher IN \$ciphers " +
+                    "AND r.thesaurusType = 'TERMINOLOGICAL' " +
                     "RETURN r.cipher AS cipher, r.title AS title"
 
         return neo4jClient.query(query)
