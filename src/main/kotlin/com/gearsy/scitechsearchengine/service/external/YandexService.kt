@@ -2,88 +2,110 @@ package com.gearsy.scitechsearchengine.service.external
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.YandexApiProperties
+import com.gearsy.scitechsearchengine.db.postgres.entity.YandexDocument
+import com.gearsy.scitechsearchengine.db.postgres.repository.YandexDocumentRepository
 import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.http.*
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestTemplate
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import java.io.ByteArrayInputStream
-import java.util.*
-import java.io.StringWriter
-import javax.xml.parsers.DocumentBuilderFactory
-import javax.xml.transform.TransformerFactory
-import javax.xml.transform.dom.DOMSource
-import javax.xml.transform.stream.StreamResult
 import org.w3c.dom.Document
 import org.w3c.dom.NodeList
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URI
-import java.net.URL
 import java.nio.file.Paths
+import java.util.*
+import javax.xml.parsers.DocumentBuilderFactory
 
 @Service
 class YandexService(
     yandexApiProperties: YandexApiProperties,
     private val restTemplate: RestTemplate,
+    private val yandexDocumentRepository: YandexDocumentRepository
 ) {
     private val logger = LoggerFactory.getLogger(YandexService::class.java)
+
     private val apiKey = yandexApiProperties.apiKey
     private val searchApiUrl = yandexApiProperties.searchApiUrl
     private val resultApiUrl = yandexApiProperties.resultApiUrl
+    private val groupsPerPage = yandexApiProperties.groupsPerPage
+    private val docsPerGroup = yandexApiProperties.docsPerGroup
+    private val region = yandexApiProperties.region
+    private val localization = yandexApiProperties.localization
+    private val sortMode = yandexApiProperties.sortMode
+    private val sortOrder = yandexApiProperties.sortOrder
+    private val maxPages = yandexApiProperties.maxPages
 
-    fun makeRequest() {
-        val query = "научно-техническая информация"
+    fun processUnstructuredSearsh(queryText: String, queryId: Long): List<YandexSearchResultModel> {
 
-        // Создание асинхронного запроса в сервисе
-        val requestId = createRequest(query)
+        val yandexDocumentResultList: MutableList<YandexSearchResultModel> = mutableListOf()
 
-        if (requestId.isEmpty()) {
-            return
+        for (page in 0 until maxPages.toInt()) {
+
+            // Создание асинхронного запроса в сервисе
+            val requestId = createRequest(queryText, page)
+
+            if (requestId.isEmpty()) {
+                continue
+            }
+
+            // Ожидание успешного выполнения запроса
+            val base64Result = runBlocking {
+                getRequestResult(requestId)
+            }
+
+            if (base64Result.isEmpty()) {
+                continue
+            }
+
+            val requestXMLBody = getBase64DecodedBody(base64Result)
+
+            val documentResultList = getDocumentResultObjectList(requestXMLBody, page)
+
+            yandexDocumentResultList.addAll(documentResultList)
+
+            downloadFiles(documentResultList, requestId, queryId)
         }
 
-        // Ожидание успешного выполнения запроса
-        val base64Result = runBlocking {
-            getRequestResult(requestId)
+        val yandexDocumentList = yandexDocumentResultList.map { it ->
+            YandexDocument(
+                queryId = queryId,
+                documentId = it.documentId,
+                title = it.title,
+                link = it.url
+            )
         }
 
-        if (base64Result.isEmpty()) {
-            return
-        }
+        yandexDocumentRepository.saveAll(yandexDocumentList)
 
-        val requestXMLBody = getBase64DecodedBody(base64Result)
-        val requestBody = documentToString(requestXMLBody)
-
-        val documentResultList = getDocumentResultObjectList(requestXMLBody)
-
-        downloadFiles(documentResultList, requestId)
+        return yandexDocumentResultList
     }
 
-    fun createRequest(query: String): String {
-
-        val mimeTypes = listOf("pdf").joinToString(" ") { "mime:$it" }
+    fun createRequest(query: String, page: Int): String {
 
         val requestBody = mapOf(
             "query" to mapOf(
                 "searchType" to "SEARCH_TYPE_RU",
-                "queryText" to "$query $mimeTypes",
+                "queryText" to query,
                 "familyMode" to "FAMILY_MODE_STRICT",
-                "page" to "1"
+                "page" to page.toString(),
             ),
             "sortSpec" to mapOf(
-                "sortMode" to "SORT_MODE_BY_RELEVANCE",
-                "sortOrder" to "SORT_ORDER_DESC"
+                "sortMode" to sortMode,
+                "sortOrder" to sortOrder
             ),
             "groupSpec" to mapOf(
-                "groupMode" to "GROUP_MODE_DEEP",
-                "groupsOnPage" to "5",
-                "docsInGroup" to "3"
+                "groupMode" to "GROUP_MODE_FLAT",
+                "groupsOnPage" to groupsPerPage,
+                "docsInGroup" to docsPerGroup
             ),
-            "maxPassages" to "3",
-            "region" to "59",
-            "l10N" to "LOCALIZATION_RU",
+            "maxPassages" to maxPages,
+            "region" to region,
+            "l10n" to localization,
             "folderId" to "b1g1hhjt0m1luncs3rbf"
         )
 
@@ -103,8 +125,6 @@ class YandexService(
             val responseBody = response.body ?: "{}"
 
             val jsonResponse = jacksonObjectMapper().readTree(responseBody)
-
-            logger.info("Yandex API Response: ${jsonResponse.toPrettyString()}")
 
             if (response.statusCode.is2xxSuccessful) {
                 return jsonResponse["id"].textValue()
@@ -128,9 +148,7 @@ class YandexService(
 
         val requestEntity = HttpEntity("", headers)
 
-        repeat(5) { attempt ->
-
-            println("Попытка #${attempt + 1}")
+        repeat(5) {
 
             try {
                 val response: ResponseEntity<String> = restTemplate.exchange(
@@ -141,8 +159,6 @@ class YandexService(
 
                 if (response.statusCode.is2xxSuccessful) {
                     val jsonResponse = jacksonObjectMapper().readTree(responseBody)
-
-                    logger.info("Yandex API Response: ${jsonResponse.toPrettyString()}")
 
                     try {
                         val status = jsonResponse["done"].booleanValue()
@@ -184,68 +200,50 @@ class YandexService(
         }
     }
 
-    fun documentToString(doc: Document): String {
-        return try {
-            val transformer = TransformerFactory.newInstance().newTransformer()
-            val writer = StringWriter()
-            transformer.transform(DOMSource(doc), StreamResult(writer))
-            writer.toString()
-        } catch (ex: Exception) {
-            "Ошибка преобразования XML в строку: ${ex.message}"
-        }
-    }
-
-    fun getDocumentResultObjectList(xmlDoc: Document): List<YandexSearchResultModel> {
+    fun getDocumentResultObjectList(xmlDoc: Document, page: Int): List<YandexSearchResultModel> {
         val results = mutableListOf<YandexSearchResultModel>()
         val docNodes: NodeList = xmlDoc.getElementsByTagName("doc")
 
         for (i in 0 until docNodes.length) {
             val docElement = docNodes.item(i)
             val docId = docElement.attributes.getNamedItem("id")?.nodeValue ?: continue
-            val urlNode = docElement.childNodes
+
 
             var url: String? = null
-            for (j in 0 until urlNode.length) {
-                if (urlNode.item(j).nodeName == "url") {
-                    url = urlNode.item(j).textContent
-                    break
+            var title = "(без названия)"
+
+            val children = docElement.childNodes
+            for (j in 0 until children.length) {
+                when (children.item(j).nodeName) {
+                    "url" -> url = children.item(j).textContent.trim()
+                    "title" -> title = children.item(j).textContent.trim()
                 }
             }
 
             if (url != null) {
-                results.add(YandexSearchResultModel(documentId = docId, url = url))
+                results.add(YandexSearchResultModel(documentId = docId, url = url, title = title))
             }
         }
         return results
     }
 
-    fun downloadFiles(resultList: List<YandexSearchResultModel>, requestId: String) {
-        val downloadPath = "src/main/resources/yandexDownloads/$requestId"
-        val isCreated = createFolder(downloadPath)
-        println(if (isCreated) "Папка создана: $downloadPath" else "Папка уже существует")
+    fun downloadFiles(resultList: List<YandexSearchResultModel>,
+                      requestId: String,
+                      queryId: Long) {
+        val downloadPath = "src/main/resources/session/yandexDocument/$queryId"
+        createFolder(downloadPath)
 
         resultList.forEach { result ->
             try {
-                val uri = URI(result.url)
-                val fileURL = uri.toURL()
-                var fileName = result.documentId + "_" + fileURL.path.substringAfterLast("/")
-                val filePath = Paths.get(downloadPath, fileName).toString()
-
-                if (!fileName.contains(".")) {
-                    fileName += ".pdf"
-                }
-
-                println("Скачивание файла: ${result.url} -> $filePath")
+                val filePath = Paths.get(downloadPath, "${result.documentId}.pdf").toString()
 
                 URI(result.url).toURL().openStream().use { input ->
                     FileOutputStream(filePath).use { output ->
                         input.copyTo(output)
                     }
                 }
-
-                println("Файл сохранён: $filePath")
             } catch (ex: Exception) {
-                println("Ошибка при загрузке ${result.url}: ${ex.message}")
+                logger.error("Ошибка при загрузке ${result.url}: ${ex.message}")
             }
         }
     }
@@ -253,9 +251,9 @@ class YandexService(
     fun createFolder(path: String): Boolean {
         val folder = File(path)
         return if (!folder.exists()) {
-            folder.mkdirs() // Создаёт папку и все вложенные директории
+            folder.mkdirs()
         } else {
-            false // Папка уже существует
+            false //
         }
     }
 

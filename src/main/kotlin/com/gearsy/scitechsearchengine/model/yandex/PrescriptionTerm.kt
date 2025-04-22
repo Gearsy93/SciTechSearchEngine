@@ -8,5 +8,7 @@ data class PrescriptionTerm(
     val weight: Double,
     val sourceType: TermSourceType,
     val thesaurusType: ThesaurusType,
-    val embedding: List<Double>
+    val embedding: List<Double>,
+    val rubricCipher: String?,
+    val rank: Int? = null
 )

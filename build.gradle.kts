@@ -60,6 +60,7 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 	implementation("net.mikera:vectorz:0.67.0")
 	implementation("org.postgresql:postgresql:42.7.5")
+	implementation("org.apache.pdfbox:pdfbox")
 }
 
 dependencyManagement {

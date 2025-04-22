@@ -9,6 +9,7 @@ import com.gearsy.scitechsearchengine.db.postgres.repository.SearchResultReposit
 import com.gearsy.scitechsearchengine.db.postgres.repository.ViewedDocumentRepository
 import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
+import com.gearsy.scitechsearchengine.service.external.YandexService
 import com.gearsy.scitechsearchengine.service.query.expansion.QueryExpansionService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricDBImportService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
@@ -32,6 +33,7 @@ class SearchConveyorService(
     private val queryExpansionService: QueryExpansionService,
     private val contextualThesaurusService: ContextualThesaurusService,
     private val vinitiDocumentService: VinitiDocumentService,
+    private val yandexService: YandexService
 ) {
 
     @Transactional
@@ -68,35 +70,40 @@ class SearchConveyorService(
 
     fun performSearchConveyor(query: Query, sessionId: Long, queryText: String) {
 
-        // Получение релевантных рубрик и терминов терминологического тезауруса
-        val iterativeRubricTermList = relevantRubricTermSearchService.getRelevantTermListFromTermThesaurus(queryText)
+//        // Получение релевантных рубрик и терминов терминологического тезауруса
+//        val iterativeRubricTermList = relevantRubricTermSearchService.getRelevantTermListFromTermThesaurus(queryText)
+//
+//        // Заполнение итерационного тезауруса
+//        rubricDBImportService.insertRubricsAndTermsFlat(query.id, sessionId, ThesaurusType.ITERATIVE, iterativeRubricTermList)
+//
+//        // Получение результатов структурированного поиска
+//        val vinitiSearchInput = VinitiServiceInput(
+//            rubricCodes = iterativeRubricTermList.map { it.cipher },
+//            maxPages = vinitiECatalogProperties.maxPages.toInt(),
+//            queryId = query.id,
+//            sessionId = sessionId
+//        )
+////        val vinitiSearchResults = vinitiDocSearchService.getActualRubricListTerm(vinitiSearchInput)
+//        val vinitiSearchResults = getVinitiCatalogMock()
+//
+//        // Заполнение расширенного итерационного тезауруса,
+//        val extendedRubricTermList = extendedIterativeThesaurusService.insertStructuredRubricAndTerms(query.id, sessionId, queryText, ThesaurusType.EXTENDED_ITERATIVE, vinitiSearchResults)
+//
+//        // Сохранение структурированных данных в реляционную БД
+////        vinitiDocumentService.saveVinitiResults(query, vinitiSearchResults)
+//
+//        // Сохранение данных итерационных тезаурусов в контекстный
+//        contextualThesaurusService.updateSessionTerms(query, sessionId, iterativeRubricTermList, extendedRubricTermList)
+//
+//        // Подсчет весов терминов на основе встречаемости в сессии контекстного тезауруса
+//        val evaluatedScoreTermList = queryExpansionService.evaluateTermListFinalScore(sessionId, iterativeRubricTermList, extendedRubricTermList)
+//
+//        // Подготовка поисковых предписаний
+//        val prescriptionList = queryExpansionService.buildBalancedSearchPrescriptions(queryText, evaluatedScoreTermList)
 
-        // Заполнение итерационного тезауруса
-        rubricDBImportService.insertRubricsAndTermsFlat(query.id, sessionId, ThesaurusType.ITERATIVE, iterativeRubricTermList)
-
-        // Получение результатов структурированного поиска
-        val vinitiSearchInput = VinitiServiceInput(
-            rubricCodes = iterativeRubricTermList.map { it.cipher },
-            maxPages = vinitiECatalogProperties.maxPages.toInt(),
-            queryId = query.id,
-            sessionId = sessionId
-        )
-//        val vinitiSearchResults = vinitiDocSearchService.getActualRubricListTerm(vinitiSearchInput)
-        val vinitiSearchResults = getVinitiCatalogMock()
-
-        // Заполнение расширенного итерационного тезауруса,
-        val extendedRubricTermList = extendedIterativeThesaurusService.insertStructuredRubricAndTerms(query.id, sessionId, queryText, ThesaurusType.EXTENDED_ITERATIVE, vinitiSearchResults)
-
-        // Сохранение структурированных данных в реляционную БД
-//        vinitiDocumentService.saveVinitiResults(query, vinitiSearchResults)
-
-        // Сохранение данных итерационных тезаурусов в контекстный
-        contextualThesaurusService.updateSessionTerms(query, sessionId, iterativeRubricTermList, extendedRubricTermList)
-
-        val evaluatedScoreTermList = queryExpansionService.evaluateTermListFinalScore(sessionId, iterativeRubricTermList, extendedRubricTermList)
-
-
-        // Подготовка поисковых предписаний
-//        queryExpansionService
+        // Неструктурированный поиск
+        val queryId = 119L
+        val сука = "filetype:pdf Математическая модель пищевого производства"
+        yandexService.processUnstructuredSearsh(сука, queryId)
     }
 }

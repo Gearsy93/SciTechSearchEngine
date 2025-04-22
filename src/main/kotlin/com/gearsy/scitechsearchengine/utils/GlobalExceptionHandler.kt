@@ -14,14 +14,10 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleException(ex: Exception): ResponseEntity<String> {
-        logger.error("Handled exception: ${ex.message}")
-
-        if (ex is NoSuchElementException) {
-            ex.printStackTrace() // добавь временно
-        }
+        logger.error("Handled exception", ex) // Это покажет, где произошла ошибка
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body("Something went wrong")
     }
-
 }
+

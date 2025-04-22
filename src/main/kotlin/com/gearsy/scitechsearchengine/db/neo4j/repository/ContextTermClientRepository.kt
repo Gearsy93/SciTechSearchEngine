@@ -22,14 +22,14 @@ class ContextTermClientRepository(
                     "  CREATE (t:ContextTerm { " +
                     "    content: term.content, " +
                     "    sessionId: term.sessionId, " +
-                    "    lastQuery: term.lastQueryId, " +
+                    "    lastQueryId: term.lastQueryId, " +
                     "    count: 1 " +
                     "  }) " +
                     "  MERGE (r)-[:HAS_TERM]->(t) " +
                     ") " +
                     "FOREACH (_ IN CASE WHEN existing IS NOT NULL THEN [1] ELSE [] END | " +
                     "  SET existing.count = existing.count + 1, " +
-                    "      existing.lastQuery = term.lastQueryId) "
+                    "      existing.lastQueryId = term.lastQueryId) "
         ).bindAll(mapOf("terms" to terms)).run()
     }
 

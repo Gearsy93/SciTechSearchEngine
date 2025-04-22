@@ -2,17 +2,19 @@ package com.gearsy.scitechsearchengine.service.query.expansion
 
 import com.gearsy.scitechsearchengine.config.properties.QueryExpansionProperties
 import com.gearsy.scitechsearchengine.db.neo4j.entity.RubricNode
-import com.gearsy.scitechsearchengine.db.neo4j.repository.ContextRubricRepository
+import com.gearsy.scitechsearchengine.db.neo4j.entity.TermSourceType
+import com.gearsy.scitechsearchengine.db.neo4j.entity.ThesaurusType
 import com.gearsy.scitechsearchengine.db.neo4j.repository.ContextTermClientRepository
-import com.gearsy.scitechsearchengine.model.yandex.RelevantRubric
+import com.gearsy.scitechsearchengine.model.yandex.PrescriptionTerm
+import com.gearsy.scitechsearchengine.model.yandex.SearchPrescription
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.util.*
 import kotlin.math.ln
 
 @Service
 class QueryExpansionService(
     private val queryExpansionProperties: QueryExpansionProperties,
-    private val contextRubricRepository: ContextRubricRepository,
     private val contextTermClientRepository: ContextTermClientRepository
 ) {
 
@@ -53,81 +55,144 @@ class QueryExpansionService(
         return updatedRubrics
     }
 
-
-//    fun preparePrescriptionList(queryText: String, rubricNodeList: List<RubricNode>) {
-//
-//        // Подготовка к генерации поисковых предписаний
-//        val relevantRubricsForQuery = rubricNodeList.map { rubricNode ->
-//            val relevant = relevantTerms
-//                .filter { it.content in (rubricNode.termList?.map { t -> t.content } ?: emptyList()) }
-//
-//            RelevantRubric(
-//                cipher = rubricNode.cipher,
-//                title = rubricNode.title,
-//                relevantTerms = relevant.map {
-//                    RelevantTerm(
-//                        content = it.content,
-//                        similarity = Vector.of(*it.embedding.toDoubleArray()).cosineSimilarity(queryEmbedding)
-//                    )
-//                }
-//            )
-//        }
-//
-//        // Генерация поисковых предписаний
-//        val searchQueries = buildPrescriptions(queryText, selectedRubricsForQuery)
-//
-//        // Лог или возврат поисковых запросов
-//        searchQueries.forEachIndexed { idx, queryLocal ->
-//            logger.info("Поисковое предписание #${idx + 1}: $queryLocal")
-//        }
-//
-//
-//    }
-
-    fun buildPrescriptions(
-        originalQuery: String,
-        relevantRubrics: List<RelevantRubric>,
+    fun buildBalancedSearchPrescriptions(
+        queryText: String,
+        rubrics: List<RubricNode>,
         maxTermsPerQuery: Int = queryExpansionProperties.maxTermsPerQuery.toInt(),
         maxCharsPerQuery: Int = queryExpansionProperties.maxCharsPerQuery.toInt(),
-    ): List<String> {
-        val result = mutableListOf<String>()
+    ): List<SearchPrescription> {
+        val rubricStacks: Map<String, Deque<PrescriptionTerm>> = prepareRubricStacks(rubrics)
+        val totalTermCount = rubricStacks.values.sumOf { it.size }
 
-        // Сначала по одному наиболее релевантному термину из каждой рубрики
-        val balancedTerms = relevantRubrics
-            .mapNotNull { it.relevantTerms.maxByOrNull { term -> term.similarity } }
-            .distinctBy { it.content }
+        for (k in 1..totalTermCount) {
+            val attempt = attemptToBuildPrescriptions(
+                queryText,
+                rubricStacks.mapValues { ArrayDeque(it.value) },
+                k,
+                maxTermsPerQuery,
+                maxCharsPerQuery
+            )
+            return attempt
+        }
 
-        // Затем глобальные термины по убыванию similarity
-        val globalTerms = relevantRubrics
-            .flatMap { it.relevantTerms }
-            .distinctBy { it.content }
-            .sortedByDescending { it.similarity }
+        return emptyList()
+    }
 
-        // Объединённый список терминов без повторов
-        val allTerms = (balancedTerms + globalTerms)
-            .distinctBy { it.content }
+    private fun prepareRubricStacks(rubrics: List<RubricNode>): Map<String, Deque<PrescriptionTerm>> {
+        return rubrics.associate { rubric ->
+            val terms = rubric.termList.orEmpty()
 
-        // Формируем поисковые запросы с учетом ограничений
-        var currentQuery = StringBuilder(originalQuery)
-        var currentTermCount = 0
+            rubric.cipher to rubric.termList.orEmpty()
+                .sortedByDescending { it.score ?: 0.0 }
+                .map { term ->
+                    PrescriptionTerm(
+                        content = term.content,
+                        weight = term.score ?: 0.0,
+                        sourceType = term.sourceType ?: TermSourceType.GRNTI,
+                        thesaurusType = term.thesaurusType ?: ThesaurusType.ITERATIVE,
+                        embedding = term.embedding,
+                        rubricCipher = rubric.cipher
+                    )
+                }
+                .toCollection(ArrayDeque())
+        }
+    }
 
-        for (term in allTerms) {
-            val formatted = term.content
-            val next = " | $formatted"
-            if (currentTermCount + 1 > maxTermsPerQuery || currentQuery.length + next.length > maxCharsPerQuery) {
-                result.add(currentQuery.toString())
-                currentQuery = StringBuilder(originalQuery).append(" | $formatted")
-                currentTermCount = 1
-            } else {
-                currentQuery.append(next)
-                currentTermCount++
+
+    private fun attemptToBuildPrescriptions(
+        queryText: String,
+        rubricStacks: Map<String, Deque<PrescriptionTerm>>,
+        k: Int,
+        maxTermsPerQuery: Int,
+        maxCharsPerQuery: Int
+    ): List<SearchPrescription> {
+        val builders = MutableList(k) { mutableListOf<PrescriptionTerm>() }
+        val usedRubricsPerBuilder = List(k) { mutableSetOf<String>() }
+        val usedTerms = mutableSetOf<String>()
+        val initialTotal = rubricStacks.values.sumOf { it.size }
+
+        // Первичный проход
+        rubricStacks.forEach { (cipher, stack) ->
+            for (i in 0 until k) {
+                if (stack.isNotEmpty()) {
+                    val term = stack.removeFirst()
+                    val testList = builders[i] + term
+                    val text = testList.joinToString(" | ", prefix = "filetype:pdf $queryText |") { it.content }
+
+                    if (term.content !in usedTerms &&
+                        cipher !in usedRubricsPerBuilder[i] &&
+                        testList.size <= maxTermsPerQuery &&
+                        text.length <= maxCharsPerQuery
+                    ) {
+                        builders[i].add(term)
+                        usedRubricsPerBuilder[i].add(cipher)
+                        usedTerms.add(term.content)
+                        break
+                    } else {
+                        stack.addFirst(term)
+                    }
+                }
             }
         }
 
-        if (currentQuery.isNotEmpty() && !result.contains(currentQuery.toString())) {
-            result.add(currentQuery.toString())
+        // Дозаполнение
+        var filledSomething: Boolean
+        do {
+            filledSomething = false
+            for ((cipher, stack) in rubricStacks) {
+                if (stack.isNotEmpty()) {
+                    val term = stack.first()
+                    for (i in 0 until k) {
+                        val testList = builders[i] + term
+                        val text = testList.joinToString(" | ", prefix = "$queryText: ") { it.content }
+
+                        if (term.content !in usedTerms &&
+                            cipher !in usedRubricsPerBuilder[i] &&
+                            testList.size <= maxTermsPerQuery &&
+                            text.length <= maxCharsPerQuery
+                        ) {
+                            builders[i].add(term)
+                            usedRubricsPerBuilder[i].add(cipher)
+                            usedTerms.add(term.content)
+                            stack.removeFirst()
+                            filledSomething = true
+                            break
+                        }
+                    }
+                }
+            }
+        } while (filledSomething)
+
+        val placed = usedTerms.size
+        if (placed < initialTotal) {
+
+            val overflowTerms = rubricStacks.values.flatten()
+                .filter { it.content !in usedTerms }
+                .sortedByDescending { it.weight }
+
+            val overflowBuilder = mutableListOf<PrescriptionTerm>()
+            for (term in overflowTerms) {
+                val testList = overflowBuilder + term
+                val text = testList.joinToString(" | ", prefix = "$queryText: ") { it.content }
+                if (testList.size <= maxTermsPerQuery && text.length <= maxCharsPerQuery) {
+                    overflowBuilder.add(term)
+                    usedTerms.add(term.content)
+                } else break
+            }
+
+            if (overflowBuilder.isNotEmpty()) {
+                val ranked = overflowBuilder.mapIndexed { rank, t -> t.copy(rank = rank + 1) }
+                builders += ranked.toMutableList()
+            }
         }
 
-        return result
+        return builders.map { terms ->
+            val ranked = terms.mapIndexed { rank, t -> t.copy(rank = rank + 1) }
+            SearchPrescription(
+                queryText = queryText,
+                generatedText = ranked.joinToString(" | ", prefix = "$queryText: ") { it.content },
+                terms = ranked
+            )
+        }
     }
 }
