@@ -4,9 +4,9 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.YandexApiProperties
 import com.gearsy.scitechsearchengine.db.postgres.entity.YandexDocument
 import com.gearsy.scitechsearchengine.db.postgres.repository.YandexDocumentRepository
+import com.gearsy.scitechsearchengine.model.yandex.SearchPrescription
 import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.*
 import org.springframework.stereotype.Service
@@ -40,7 +40,46 @@ class YandexService(
     private val sortOrder = yandexApiProperties.sortOrder
     private val maxPages = yandexApiProperties.maxPages
 
-    fun processUnstructuredSearsh(queryText: String, queryId: Long): List<YandexSearchResultModel> {
+    suspend fun processUnstructuredSearch(
+        queryId: Long,
+        prescriptionList: List<SearchPrescription>
+    ): List<YandexSearchResultModel> {
+
+        val allDownloaded = mutableListOf<Deferred<List<YandexSearchResultModel>>>()
+
+        coroutineScope {
+            for (prescription in prescriptionList) {
+                delay(1000) // Ограничение: 1 запрос в секунду
+
+                val prescriptionCopy = prescription // нужен для использования в launch
+
+                val job = async(Dispatchers.IO) {
+                    val results = getPrescriptionResultList(prescriptionCopy.generatedText, prescription, queryId)
+                    val resultsWithPrescription = results.map {
+                        YandexSearchResultModel(
+                            documentId = it.documentId,
+                            title = it.title,
+                            url = it.url,
+                            prescription = prescriptionCopy
+                        )
+                    }
+
+                    // Асинхронно запускаем скачивание файлов
+                    launch {
+                        downloadFiles(results, UUID.randomUUID().toString(), queryId)
+                    }
+
+                    resultsWithPrescription
+                }
+
+                allDownloaded += job
+            }
+        }
+
+        return allDownloaded.awaitAll().flatten()
+    }
+
+    fun getPrescriptionResultList(queryText: String, prescription: SearchPrescription, queryId: Long): List<YandexSearchResultModel> {
 
         val yandexDocumentResultList: MutableList<YandexSearchResultModel> = mutableListOf()
 
@@ -64,23 +103,10 @@ class YandexService(
 
             val requestXMLBody = getBase64DecodedBody(base64Result)
 
-            val documentResultList = getDocumentResultObjectList(requestXMLBody, page)
+            val documentResultList = getDocumentResultList(requestXMLBody, page, prescription)
 
             yandexDocumentResultList.addAll(documentResultList)
-
-            downloadFiles(documentResultList, requestId, queryId)
         }
-
-        val yandexDocumentList = yandexDocumentResultList.map { it ->
-            YandexDocument(
-                queryId = queryId,
-                documentId = it.documentId,
-                title = it.title,
-                link = it.url
-            )
-        }
-
-        yandexDocumentRepository.saveAll(yandexDocumentList)
 
         return yandexDocumentResultList
     }
@@ -148,6 +174,7 @@ class YandexService(
 
         val requestEntity = HttpEntity("", headers)
 
+        logger.info("Получение тела ответа...")
         repeat(5) {
 
             try {
@@ -164,6 +191,7 @@ class YandexService(
                         val status = jsonResponse["done"].booleanValue()
 
                         if (status) {
+                            logger.info("Ответ получен\n")
                             return jsonResponse["response"]["rawData"].textValue()
                         }
                     }
@@ -200,7 +228,7 @@ class YandexService(
         }
     }
 
-    fun getDocumentResultObjectList(xmlDoc: Document, page: Int): List<YandexSearchResultModel> {
+    fun getDocumentResultList(xmlDoc: Document, page: Int, prescription: SearchPrescription): List<YandexSearchResultModel> {
         val results = mutableListOf<YandexSearchResultModel>()
         val docNodes: NodeList = xmlDoc.getElementsByTagName("doc")
 
@@ -221,20 +249,29 @@ class YandexService(
             }
 
             if (url != null) {
-                results.add(YandexSearchResultModel(documentId = docId, url = url, title = title))
+                results.add(YandexSearchResultModel(
+                    documentId = docId,
+                    url = url,
+                    title = title,
+                    prescription = prescription))
             }
         }
         return results
     }
 
-    fun downloadFiles(resultList: List<YandexSearchResultModel>,
-                      requestId: String,
-                      queryId: Long) {
+    suspend fun downloadFiles(
+        resultList: List<YandexSearchResultModel>,
+        requestId: String,
+        queryId: Long
+    ): List<YandexSearchResultModel> {
         val downloadPath = "src/main/resources/session/yandexDocument/$queryId"
         createFolder(downloadPath)
 
-        resultList.forEach { result ->
+        logger.info("Загрузка файлов страницы...")
+
+        val successfulDownloads = resultList.mapNotNull { result ->
             try {
+                delay(1000)
                 val filePath = Paths.get(downloadPath, "${result.documentId}.pdf").toString()
 
                 URI(result.url).toURL().openStream().use { input ->
@@ -242,19 +279,36 @@ class YandexService(
                         input.copyTo(output)
                     }
                 }
+                result // возвращаем объект, если загрузка прошла успешно
             } catch (ex: Exception) {
                 logger.error("Ошибка при загрузке ${result.url}: ${ex.message}")
+                null // отбрасываем объект, если произошла ошибка
             }
         }
+
+        val documentsToSave = successfulDownloads.map {
+            YandexDocument(
+                queryId = queryId,
+                documentId = it.documentId,
+                title = it.title,
+                link = it.url
+            )
+        }
+
+        yandexDocumentRepository.saveAll(documentsToSave)
+
+        logger.info("Загрузка завершена. Успешно загружено: ${successfulDownloads.size} файлов.\n")
+
+        return successfulDownloads
     }
+
 
     fun createFolder(path: String): Boolean {
         val folder = File(path)
         return if (!folder.exists()) {
             folder.mkdirs()
         } else {
-            false //
+            false
         }
     }
-
 }

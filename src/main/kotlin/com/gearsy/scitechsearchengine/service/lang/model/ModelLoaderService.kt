@@ -22,7 +22,8 @@ class ModelLoaderService(private val uSERBgeM3Properties: USERBgeM3Properties,
 
     private val modelLoadingFlags = listOf(
         "-get_query_relevant_rubric_term_list",
-        "-run_search_conveyor"
+        "-run_search_conveyor",
+//        "-run_rank_summarize"
     )
 
     @PostConstruct

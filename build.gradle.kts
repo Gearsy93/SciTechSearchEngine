@@ -60,7 +60,7 @@ dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 	implementation("net.mikera:vectorz:0.67.0")
 	implementation("org.postgresql:postgresql:42.7.5")
-	implementation("org.apache.pdfbox:pdfbox")
+	implementation(files("libs/jpedal_lgpl-4.92-p13.jar"))
 }
 
 dependencyManagement {
@@ -126,4 +126,11 @@ tasks.register<JavaExec>("runSearchConveyor") {
 	classpath = sourceSets["main"].runtimeClasspath
 	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
 	args = listOf("-run_search_conveyor")
+}
+
+tasks.register<JavaExec>("runRankSummarize") {
+	group = "application"
+	classpath = sourceSets["main"].runtimeClasspath
+	mainClass.set("com.gearsy.scitechsearchengine.ScienceTechnologySearchEngineApplicationKt")
+	args = listOf("-run_rank_summarize")
 }

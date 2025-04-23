@@ -2,6 +2,8 @@ package com.gearsy.scitechsearchengine.config.cli
 
 import com.gearsy.scitechsearchengine.config.properties.VinitiECatalogProperties
 import com.gearsy.scitechsearchengine.controller.QueryController
+import com.gearsy.scitechsearchengine.db.postgres.entity.Query
+import com.gearsy.scitechsearchengine.db.postgres.entity.Session
 import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
 import com.gearsy.scitechsearchengine.service.external.YandexService
@@ -12,9 +14,6 @@ import com.gearsy.scitechsearchengine.service.thesaurus.type.TerminologicalThesa
 import org.slf4j.LoggerFactory
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
-import kotlin.math.abs
-import kotlin.random.Random.Default.nextInt
-import kotlin.random.Random.Default.nextLong
 
 @Component
 class ConsoleArgsRunner(
@@ -65,11 +64,11 @@ class ConsoleArgsRunner(
                     vinitiDocSearchService.getActualRubricListTerm(testInput)
                 }
 
-                arguments.contains("-make_yandex_search_api_request") -> {
-                    val queryId = 72L
-                    val query = "filetype:pdf Математическая модель пищевого производства"
-                    yandexAPIInteractionService.processUnstructuredSearsh(query, queryId)
-                }
+//                arguments.contains("-make_yandex_search_api_request") -> {
+//                    val queryId = 119L
+//                    val query = "filetype:pdf Математическая модель пищевого производства"
+//                    yandexAPIInteractionService.getPrescriptionResultList(query, queryId)
+//                }
 
                 arguments.contains("-run_search_conveyor") -> {
                     val testQueryText = "Цифровая трансформация производства"
@@ -78,7 +77,9 @@ class ConsoleArgsRunner(
                 }
 
                 arguments.contains("-run_rank_summarize") -> {
-                    summarizationAndRankingService.
+                    val query = Query(119L, Session(), "Цифровая трансформация производства")
+//                    val yandexResultList = getYandexResultsMock()
+//                    summarizationAndRankingService.performRankingAndSummarization(query, yandexResultList)
                 }
 
                 else -> {
@@ -86,29 +87,5 @@ class ConsoleArgsRunner(
                 }
             }
         }
-
     }
-
-    fun extractTextFromPdf(file: File): String {
-        PDDocument.load(file).use { document ->
-            return PDFTextStripper().getText(document)
-        }
-    }
-
-    fun cleanText(text: String): String {
-        return text.replace(Regex("\\s+"), " ").trim()
-    }
-
-    fun cosineSimilarity(vec1: List<Double>, vec2: List<Double>): Double {
-        val dot = vec1.zip(vec2).sumOf { it.first * it.second }
-        val norm1 = kotlin.math.sqrt(vec1.sumOf { it * it }.toDouble())
-        val norm2 = kotlin.math.sqrt(vec2.sumOf { it * it }.toDouble())
-        return if (norm1 == 0.0 || norm2 == 0.0) 0.0 else dot / (norm1 * norm2)
-    }
-
-    fun generateSummary(text: String): String {
-        // Простое реферирование — первый абзац
-        return text.split(Regex("[.!?]")).take(2).joinToString(". ") + "..."
-    }
-
 }

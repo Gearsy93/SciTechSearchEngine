@@ -7,4 +7,5 @@ data class YandexSearchResultModel(
     val documentId: String,
     val title: String,
     val url: String,
+    val prescription: SearchPrescription,
 )
