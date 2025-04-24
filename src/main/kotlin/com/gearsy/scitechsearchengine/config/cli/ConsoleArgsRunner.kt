@@ -1,10 +1,13 @@
 package com.gearsy.scitechsearchengine.config.cli
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.VinitiECatalogProperties
 import com.gearsy.scitechsearchengine.controller.QueryController
 import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.db.postgres.entity.Session
 import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
+import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
 import com.gearsy.scitechsearchengine.service.external.YandexService
 import com.gearsy.scitechsearchengine.service.rank.summarize.SummarizationAndRankingService
@@ -14,6 +17,7 @@ import com.gearsy.scitechsearchengine.service.thesaurus.type.TerminologicalThesa
 import org.slf4j.LoggerFactory
 import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
+import java.io.File
 
 @Component
 class ConsoleArgsRunner(
@@ -73,13 +77,17 @@ class ConsoleArgsRunner(
                 arguments.contains("-run_search_conveyor") -> {
                     val testQueryText = "Цифровая трансформация производства"
                     val sessionId = 72L
-//                     searchConveyorService.performSearchConveyor(testQueryText, sessionId, testQueryText)
+                     searchConveyorService.performSearchConveyor(Query(0L, Session(), testQueryText), sessionId, testQueryText)
                 }
 
                 arguments.contains("-run_rank_summarize") -> {
-                    val query = Query(119L, Session(), "Цифровая трансформация производства")
-//                    val yandexResultList = getYandexResultsMock()
-//                    summarizationAndRankingService.performRankingAndSummarization(query, yandexResultList)
+
+                    val query = Query(131L, Session(), "Цифровая трансформация производства")
+                    val prescriptionPath = "D:\\Project\\HSE\\SciTechSearchEngine\\src\\main\\resources\\prescriptionMock.json"
+                    val mapper = ObjectMapper()
+                    val typeRef = object : TypeReference<List<YandexSearchResultModel>>() {}
+                    val yandexResults =  mapper.readValue(File(prescriptionPath), typeRef)
+                    summarizationAndRankingService.performRankingAndSummarization(query, yandexResults)
                 }
 
                 else -> {

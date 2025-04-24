@@ -144,7 +144,7 @@ class QueryExpansionService(
                     val term = stack.first()
                     for (i in 0 until k) {
                         val testList = builders[i] + term
-                        val text = testList.joinToString(" | ", prefix = "$queryText: ") { it.content }
+                        val text = testList.joinToString(" | ", prefix = "filetype:pdf $queryText: ") { it.content }
 
                         if (term.content !in usedTerms &&
                             cipher !in usedRubricsPerBuilder[i] &&
@@ -173,7 +173,7 @@ class QueryExpansionService(
             val overflowBuilder = mutableListOf<PrescriptionTerm>()
             for (term in overflowTerms) {
                 val testList = overflowBuilder + term
-                val text = testList.joinToString(" | ", prefix = "$queryText: ") { it.content }
+                val text = testList.joinToString(" | ", prefix = "filetype:pdf $queryText: ") { it.content }
                 if (testList.size <= maxTermsPerQuery && text.length <= maxCharsPerQuery) {
                     overflowBuilder.add(term)
                     usedTerms.add(term.content)
@@ -190,7 +190,7 @@ class QueryExpansionService(
             val ranked = terms.mapIndexed { rank, t -> t.copy(rank = rank + 1) }
             SearchPrescription(
                 queryText = queryText,
-                generatedText = ranked.joinToString(" | ", prefix = "$queryText: ") { it.content },
+                generatedText = ranked.joinToString(" | ", prefix = "filetype:pdf $queryText: ") { it.content },
                 terms = ranked
             )
         }

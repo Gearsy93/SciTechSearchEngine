@@ -1,7 +1,10 @@
 package com.gearsy.scitechsearchengine.service.rank.summarize
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.db.postgres.entity.SearchResult
+import com.gearsy.scitechsearchengine.db.postgres.entity.Session
 import com.gearsy.scitechsearchengine.model.document.ParagraphBlock
 import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
@@ -20,11 +23,11 @@ class SummarizationAndRankingService(
 ) {
     private val logger = LoggerFactory.getLogger(SummarizationAndRankingService::class.java)
 
-
     fun performRankingAndSummarization(
         query: Query,
         yandexResults: List<YandexSearchResultModel>
     ): List<SearchResult> {
+
         val downloadPath = "src/main/resources/session/yandexDocument/${query.id}"
 
         val allParagraphs: List<Pair<YandexSearchResultModel, List<ParagraphBlock>>> = runBlocking {

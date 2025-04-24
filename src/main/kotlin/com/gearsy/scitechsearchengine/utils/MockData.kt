@@ -40,31 +40,6 @@ fun generateMockResults(query: Query): List<SearchResult> {
         )
     }
 }
-//
-//fun getYandexResultsMock(): List<YandexSearchResultModel> {
-//    return listOf(
-//        YandexSearchResultModel(
-//            documentId = "Z0F8BC48B3ACF7200",
-//            title = "Microsoft Word - обл",
-//            url = "https://tstu.ru/book/elib/pdf/2014/dvorecky.pdf"
-//        ),
-//        YandexSearchResultModel(
-//            documentId = "Z487E31F8E73255D1",
-//            title = "Федеральное государственное бюджетное образовательное...",
-//            url = "https://klgtu.ru/vikon/sveden/files/UMP_k_LR_Matematicheskoe_modelirovanie_v_pischevoy_biotexnologii.pdf"
-//        ),
-//        YandexSearchResultModel(
-//            documentId = "Z631A4BEA00FBB4DE",
-//            title = "Моделирование объектов и процессов в пищевых производствах",
-//            url = "https://cyberleninka.ru/article/n/modelirovanie-obektov-i-protsessov-v-pischevyh-proizvodstvah"
-//        ),
-//        YandexSearchResultModel(
-//            documentId = "Z95A89CD42B209DA7",
-//            title = "Федеральное государственное бюджетное образовательное...",
-//            url = "https://klgtu.ru/vikon/sveden/files/UMP_po_Matematicheskomu_modelirovaniyu_proektirovaniya_produktov_pitaniya(2).pdf"
-//        )
-//    )
-//}
 
 fun getVinitiCatalogMock(): List<VinitiDocumentMeta> {
     return listOf(

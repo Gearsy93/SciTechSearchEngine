@@ -1,7 +1,10 @@
 package com.gearsy.scitechsearchengine.model.yandex
 
-data class SearchPrescription(
-    val queryText: String,
-    val generatedText: String,
-    val terms: List<PrescriptionTerm>
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
+
+data class SearchPrescription @JsonCreator constructor(
+    @JsonProperty("queryText") val queryText: String,
+    @JsonProperty("generatedText") val generatedText: String,
+    @JsonProperty("terms") val terms: List<PrescriptionTerm>
 )

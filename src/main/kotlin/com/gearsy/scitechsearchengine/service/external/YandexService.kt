@@ -1,5 +1,7 @@
 package com.gearsy.scitechsearchengine.service.external
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.gearsy.scitechsearchengine.config.properties.YandexApiProperties
 import com.gearsy.scitechsearchengine.db.postgres.entity.YandexDocument
@@ -7,6 +9,7 @@ import com.gearsy.scitechsearchengine.db.postgres.repository.YandexDocumentRepos
 import com.gearsy.scitechsearchengine.model.yandex.SearchPrescription
 import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
 import kotlinx.coroutines.*
+import org.jpedal.PdfDecoder
 import org.slf4j.LoggerFactory
 import org.springframework.http.*
 import org.springframework.stereotype.Service
@@ -28,6 +31,7 @@ class YandexService(
     private val yandexDocumentRepository: YandexDocumentRepository
 ) {
     private val logger = LoggerFactory.getLogger(YandexService::class.java)
+
 
     private val apiKey = yandexApiProperties.apiKey
     private val searchApiUrl = yandexApiProperties.searchApiUrl
@@ -55,6 +59,7 @@ class YandexService(
 
                 val job = async(Dispatchers.IO) {
                     val results = getPrescriptionResultList(prescriptionCopy.generatedText, prescription, queryId)
+                    logger.info("Получены результаты по первому ПП")
                     val resultsWithPrescription = results.map {
                         YandexSearchResultModel(
                             documentId = it.documentId,
@@ -66,6 +71,7 @@ class YandexService(
 
                     // Асинхронно запускаем скачивание файлов
                     launch {
+                        logger.info("Погнала асинхронная загрузка файлов по ПП")
                         downloadFiles(results, UUID.randomUUID().toString(), queryId)
                     }
 
@@ -76,7 +82,39 @@ class YandexService(
             }
         }
 
-        return allDownloaded.awaitAll().flatten()
+        logger.info("Ожиданием загрузки всех ПП")
+
+        val verifiedDownloads = allDownloaded
+            .awaitAll()
+            .flatten()
+            .filter { result ->
+                val file = File("src/main/resources/session/yandexDocument/$queryId/${result.documentId}.pdf")
+                if (!file.exists()) return@filter false
+
+                return@filter try {
+                    val decoder = PdfDecoder()
+                    decoder.setExtractionMode(PdfDecoder.TEXT)
+                    decoder.openPdfFile(file.absolutePath)
+                    decoder.closePdfFile()
+                    true
+                } catch (e: Exception) {
+                    logger.warn("Файл повреждён или не читается: ${file.name}")
+                    try {
+                        val deleted = file.delete()
+                        if (deleted) {
+                            logger.info("Удалён битый файл: ${file.name}")
+                        } else {
+                            logger.warn("Не удалось удалить файл: ${file.name}")
+                        }
+                    } catch (deleteError: Exception) {
+                        logger.error("Ошибка при удалении файла ${file.name}", deleteError)
+                    }
+                    false
+                }
+            }
+
+        return verifiedDownloads.distinctBy { it.documentId }
+
     }
 
     fun getPrescriptionResultList(queryText: String, prescription: SearchPrescription, queryId: Long): List<YandexSearchResultModel> {
@@ -107,6 +145,7 @@ class YandexService(
 
             yandexDocumentResultList.addAll(documentResultList)
         }
+        logger.info("Полученые результаты всех страниц")
 
         return yandexDocumentResultList
     }

@@ -11,6 +11,7 @@ import com.gearsy.scitechsearchengine.model.viniti.catalog.VinitiServiceInput
 import com.gearsy.scitechsearchengine.service.external.VinitiSearchService
 import com.gearsy.scitechsearchengine.service.external.YandexService
 import com.gearsy.scitechsearchengine.service.query.expansion.QueryExpansionService
+import com.gearsy.scitechsearchengine.service.rank.summarize.SummarizationAndRankingService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricDBImportService
 import com.gearsy.scitechsearchengine.service.thesaurus.shared.RubricSearchAlgorithmService
 import com.gearsy.scitechsearchengine.service.thesaurus.type.ContextualThesaurusService
@@ -18,6 +19,7 @@ import com.gearsy.scitechsearchengine.service.thesaurus.type.ExtendedIterativeTh
 import com.gearsy.scitechsearchengine.service.viniti.document.VinitiDocumentService
 import com.gearsy.scitechsearchengine.utils.generateMockResults
 import com.gearsy.scitechsearchengine.utils.getVinitiCatalogMock
+import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -33,7 +35,8 @@ class SearchConveyorService(
     private val queryExpansionService: QueryExpansionService,
     private val contextualThesaurusService: ContextualThesaurusService,
     private val vinitiDocumentService: VinitiDocumentService,
-    private val yandexService: YandexService
+    private val yandexService: YandexService,
+    private val summarizationAndRankingService: SummarizationAndRankingService
 ) {
 
     @Transactional
@@ -100,12 +103,11 @@ class SearchConveyorService(
 
         // Подготовка поисковых предписаний
         val prescriptionList = queryExpansionService.buildBalancedSearchPrescriptions(queryText, evaluatedScoreTermList)
-        println()
 
         // Неструктурированный поиск
-//        val yandexResultList = yandexService.processUnstructuredSearch(query.id, prescriptionList)
+        val yandexResultList = runBlocking { yandexService.processUnstructuredSearch(query.id, prescriptionList) }
 
         // Ранжирование и реферирование
-
+        val searchResultsList = summarizationAndRankingService.performRankingAndSummarization(query, yandexResultList)
     }
 }
