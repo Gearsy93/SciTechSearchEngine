@@ -80,7 +80,6 @@ class QueryExpansionService(
 
     private fun prepareRubricStacks(rubrics: List<RubricNode>): Map<String, Deque<PrescriptionTerm>> {
         return rubrics.associate { rubric ->
-            val terms = rubric.termList.orEmpty()
 
             rubric.cipher to rubric.termList.orEmpty()
                 .sortedByDescending { it.score ?: 0.0 }
@@ -191,8 +190,22 @@ class QueryExpansionService(
             SearchPrescription(
                 queryText = queryText,
                 generatedText = ranked.joinToString(" | ", prefix = "filetype:pdf $queryText: ") { it.content },
-                terms = ranked
+                terms = ranked,
+                weight = calculatePrescriptionWeight(ranked)
             )
         }
+    }
+
+    fun calculatePrescriptionWeight(terms: List<PrescriptionTerm>, alpha: Double = 0.2): Float {
+        if (terms.isEmpty()) return 0f
+
+        val sorted = terms.sortedBy { it.rank ?: Int.MAX_VALUE }
+        val weights = sorted.mapIndexed { index, term ->
+            val decay = Math.exp(-alpha * index)
+            term.weight * decay
+        }
+
+        val total = weights.sum()
+        return total.toFloat()
     }
 }

@@ -3,6 +3,8 @@ package com.gearsy.scitechsearchengine.service.rank.summarize
 import com.gearsy.scitechsearchengine.db.postgres.entity.Query
 import com.gearsy.scitechsearchengine.db.postgres.entity.SearchResult
 import com.gearsy.scitechsearchengine.model.document.ParagraphBlock
+import com.gearsy.scitechsearchengine.model.document.RankedDocument
+import com.gearsy.scitechsearchengine.model.document.SentenceCandidate
 import com.gearsy.scitechsearchengine.model.yandex.YandexSearchResultModel
 import com.gearsy.scitechsearchengine.service.lang.model.EmbeddingService
 import kotlinx.coroutines.*
@@ -44,10 +46,19 @@ class SummarizationAndRankingService(
             }
         }
 
-        val searchResultList = processDocumentsParagraphs(query, allParagraphs)
-
-        return mutableListOf<SearchResult>().apply {}
+        return processDocumentsParagraphs(query, allParagraphs)
     }
+
+    fun <T> List<T>.chunkedBatch(size: Int): List<List<T>> =
+        this.chunked(size)
+
+    fun generateEmbeddingsSafe(sentences: List<String>, batchSize: Int = 32): List<List<Float>> {
+        return sentences.chunkedBatch(batchSize).flatMap { batch ->
+            embeddingService.generateEmbeddings(batch)
+        }
+    }
+
+
 
     fun extractTextWithJPedalParallel(path: String): List<ParagraphBlock> {
         val decoder = PdfDecoder()
@@ -148,24 +159,97 @@ class SummarizationAndRankingService(
         query: Query,
         documentsWithParagraphs: List<Pair<YandexSearchResultModel, List<ParagraphBlock>>>
     ): List<SearchResult> {
-        // Здесь ты можешь:
-        // - Разбить ParagraphBlock.text на предложения
-        // - Генерировать эмбеддинги
-        // - Рассчитать релевантность: новизна, позиция, покрытие
-        // - Сформировать итоговый список SearchResult
+        val queryEmbedding = Vector.create(
+            embeddingService.generateEmbeddings(listOf(query.queryText))[0].map { it.toDouble() }.toDoubleArray()
+        )
 
-        val queryEmbedding = Vector.of(*embeddingService.generateEmbeddings(listOf(query.queryText)).first().map(Float::toDouble).toDoubleArray())
+        return runBlocking {
+            coroutineScope {
+                documentsWithParagraphs.map { (doc, paragraphBlocks) ->
+                    async(Dispatchers.Default) {
+                        val sentenceBlocks = paragraphBlocks.mapNotNull { block ->
+                            val sentences = splitIntoSentences(block.text)
+                            if (sentences.isEmpty()) return@mapNotNull null
+                            block to sentences
+                        }
 
-        return documentsWithParagraphs.mapIndexed { index, (doc, paragraphs) ->
-            SearchResult(
-                query = query,
-                documentId = doc.documentId,
-                documentUrl = doc.url,
-                title = doc.title,
-                snippet = "", // заполни после ранжирования
-                score = 0.0   // пока заглушка
-            )
+                        val allSentences = sentenceBlocks.flatMap { (_, sentences) -> sentences }
+                        if (allSentences.isEmpty()) return@async null
+
+                        val sentenceEmbeddings = generateEmbeddingsSafe(allSentences, batchSize = 32)
+                            .map { Vector.create(it.map { f -> f.toDouble() }.toDoubleArray()) }
+
+                        val noveltyPenalties = computeNoveltyPenalties(sentenceEmbeddings)
+
+                        var embeddingIdx = 0
+                        val candidates = mutableListOf<Pair<ParagraphBlock, SentenceCandidate>>()
+
+                        for ((block, sentences) in sentenceBlocks) {
+                            val sentenceCandidates = sentences.mapIndexed { i, sentence ->
+                                val embedding = sentenceEmbeddings[embeddingIdx]
+                                val novelty = noveltyPenalties[embeddingIdx]
+                                val similarity = embedding.cosineSimilarity(queryEmbedding)
+                                val positionBoost = if (i == 0 || i == sentences.lastIndex) 0.05 else 0.0
+
+                                val score = 0.8 * similarity + 0.05 * positionBoost - 0.15 * novelty
+                                embeddingIdx++
+
+                                SentenceCandidate(
+                                    sentence = sentence,
+                                    embedding = embedding,
+                                    similarityToQuery = similarity,
+                                    noveltyPenalty = novelty,
+                                    positionPenalty = positionBoost,
+                                    score = score
+                                )
+                            }
+
+                            val best = sentenceCandidates.maxByOrNull { it.score }
+                            if (best != null) candidates += block to best
+                        }
+
+                        val top = candidates.maxByOrNull { it.second.score } ?: return@async null
+
+                        SearchResult(
+                            query = query,
+                            documentId = doc.documentId,
+                            documentUrl = doc.url,
+                            title = doc.title,
+                            snippet = top.first.text,
+                            score = top.second.score
+                        )
+                    }
+                }.awaitAll().filterNotNull()
+            }
         }
+    }
+
+
+
+
+    fun computeNoveltyPenalties(embeddings: List<Vector>): List<Double> {
+        return embeddings.mapIndexed { i, current ->
+            val others = embeddings.filterIndexed { j, _ -> j != i }
+            val maxSimilarity = others.maxOfOrNull { other ->
+                current.cosineSimilarity(other)
+            } ?: 0.0
+            maxSimilarity
+        }
+    }
+
+
+    fun splitIntoSentences(text: String): List<String> {
+        return text.split(Regex("(?<=[.!?])\\s+"))
+            .map { it.trim() }
+            .filter { it.length > 20 && it.count { ch -> ch == ' ' } > 3 && !it.contains("......") }
+    }
+
+    fun Vector.cosineSimilarity(other: Vector): Double {
+        val dot = this.dotProduct(other)
+        val norm1 = this.magnitude()
+        val norm2 = other.magnitude()
+
+        return if (norm1 == 0.0 || norm2 == 0.0) 0.0 else dot / (norm1 * norm2)
     }
 
 }

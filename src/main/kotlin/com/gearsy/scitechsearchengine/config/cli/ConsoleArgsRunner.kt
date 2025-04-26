@@ -82,12 +82,12 @@ class ConsoleArgsRunner(
 
                 arguments.contains("-run_rank_summarize") -> {
 
-                    val query = Query(131L, Session(), "Цифровая трансформация производства")
+                    val query = Query(133L, Session(), "Цифровая трансформация производства")
                     val prescriptionPath = "D:\\Project\\HSE\\SciTechSearchEngine\\src\\main\\resources\\prescriptionMock.json"
                     val mapper = ObjectMapper()
                     val typeRef = object : TypeReference<List<YandexSearchResultModel>>() {}
                     val yandexResults =  mapper.readValue(File(prescriptionPath), typeRef)
-                    summarizationAndRankingService.performRankingAndSummarization(query, yandexResults)
+                    val results = summarizationAndRankingService.performRankingAndSummarization(query, yandexResults)
                 }
 
                 else -> {
